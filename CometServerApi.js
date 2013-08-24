@@ -196,7 +196,7 @@ function CometServer(options)
         this.options = opt
         this.arg= "";
 
-        this.url = '//client'+this.options.dev_id+'.comet-server.ru:44442/?type=Long-Polling&sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id;
+        this.url = '//client'+this.options.dev_id+'.app.comet-server.ru/?type=Long-Polling&sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id;
 
         this.subscription_array = new Array();
         this.user_id = 0;
@@ -517,9 +517,3 @@ function CometServer(options)
 
     return this.server;
 }
-
-
-$(document).ready(function()
-{
-    CometServer({dev_id:5}).start()
-});
