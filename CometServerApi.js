@@ -285,12 +285,12 @@ function CometServer(options)
                     thisObj.xhrObj.abort();
                     thisObj.in_abort = false;
                     thisObj.conect_to_server(callback, callback_arg)
-                    console.error('msg master restart')
+                    console.log('msg master restart')
                 },1000)
             }
             else
             {
-                console.error('comet_msg_slave_signal_restart')
+                console.log('comet_msg_slave_signal_restart')
                 comet_server_signal().send_emit('comet_msg_slave_signal_restart')
             }
         }
@@ -507,7 +507,7 @@ function CometServer(options)
 
     if(!this.options.dev_id)
     {
-        console.error("CometServerApi:Не указан dev_id")
+        console.log("CometServerApi:Не указан dev_id")
     }
 
     if(!this.server)
