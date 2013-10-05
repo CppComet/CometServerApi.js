@@ -354,7 +354,6 @@ function CometServer(options)
 
             comet_server_signal().connect(false,'comet_msg_slave_add_subscription_and_restart', function(p1,arg)// подключение на сигнал переподписки от других вкладок
             {
-                //console.log([p1,arg])
                 thisObj.subscription(p1)
             })
         }
