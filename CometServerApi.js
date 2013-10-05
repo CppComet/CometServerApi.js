@@ -24,6 +24,35 @@ function getCookie(name)
 }
 
 
+function utf8(utftext) {
+    var string = "";
+    var i = 0;
+    var c = c1 = c2 = 0;
+
+    while (i < utftext.length) {
+
+        c = utftext.charCodeAt(i);
+
+        if (c < 128) {
+            string += String.fromCharCode(c);
+            i++;
+        }
+        else if ((c > 191) && (c < 224)) {
+            c2 = utftext.charCodeAt(i + 1);
+            string += String.fromCharCode(((c & 31) << 6) | (c2 & 63));
+            i += 2;
+        }
+        else {
+            c2 = utftext.charCodeAt(i + 1);
+            c3 = utftext.charCodeAt(i + 2);
+            string += String.fromCharCode(((c & 15) << 12) | ((c2 & 63) << 6) | (c3 & 63));
+            i += 3;
+        }
+
+    } 
+    return string;
+}
+
 function base64_decode( data ) {
         // Decodes data encoded with MIME base64
 	//
@@ -58,7 +87,7 @@ function comet_server_signal()
 {
     if(!this.custom_id)
     {
-        this.custom_id = Math.random()+"_"+Math.random()+"_"+Math.random()+"_"+Math.random() 
+        this.custom_id = Math.random()+"_"+Math.random()+"_"+Math.random()+"_"+Math.random()
         this.slotArray = new Array()
         this.debug = false
     }
@@ -104,7 +133,7 @@ function comet_server_signal()
      * Отписывает слот slot_name от сигнала signal_name
      */
     this.disconnect = function(slot_name, signal_name)
-    { 
+    {
         if (this.slotArray[signal_name] === undefined)
         {
             this.slotArray[signal_name] = new Array()
@@ -136,7 +165,7 @@ function comet_server_signal()
                 this.slotArray[signal_name][slot](param,signal_name)
             }
 
-        } 
+        }
     }
 
     /*
@@ -162,35 +191,36 @@ function comet_server_signal()
 }
 
 
-function storageEventHandler(e)
-{
-    var data = JSON.parse(e.newValue);
-
-    if(this.debug) console.log( data.name )
-    comet_server_signal().emit( data.name, data.param )
-}
-
 
 if(!comet_server_signal.prototype.init)
 {
     comet_server_signal.prototype.init = true
     if( window.addEventListener )
     {
-        window.addEventListener('storage', storageEventHandler, false);
+        window.addEventListener('storage', function(e)
+        {
+            var data = JSON.parse(e.newValue);
+            if(this.debug) console.log( data.name )
+            comet_server_signal().emit( data.name, data.param )
+        }, false);
     }
     else
     {
-        document.attachEvent('onstorage', storageEventHandler );
+        document.attachEvent('onstorage', function(e)
+        {
+            var data = JSON.parse(e.newValue);
+            if(this.debug) console.log( data.name )
+            comet_server_signal().emit( data.name, data.param )
+        } );
     }
 }
 
 
 
-
+var __CometServer = undefined;
 function CometServer(options)
 {
-
-        console.log(options)
+    console.log(options)
     var CometServerApi = function(opt)
     {
         this.options = opt
@@ -227,7 +257,7 @@ function CometServer(options)
                         return 1;
                     }
                 }
-                
+
                 this.subscription_array[this.subscription_array.length] = name
                 if(this.is_master)
                 {
@@ -254,7 +284,7 @@ function CometServer(options)
             if(this.is_master)
             {
                 this.in_abort = true;
-                this.xhrObj.abort();
+                this.request.abort();
             }
             else
             {
@@ -279,18 +309,20 @@ function CometServer(options)
                     clearTimeout( this.restart_time_id )
                 }
 
+
+
                 this.restart_time_id = setTimeout(function()
                 {
-                    thisObj.in_abort = true;
-                    thisObj.xhrObj.abort();
+		    thisObj.in_abort = true;
+                    thisObj.request.abort();
                     thisObj.in_abort = false;
                     thisObj.conect_to_server(callback, callback_arg)
-                    console.log('msg master restart')
+                    console.error('msg master restart')
                 },1000)
             }
             else
             {
-                console.log('comet_msg_slave_signal_restart')
+                console.error('comet_msg_slave_signal_restart')
                 comet_server_signal().send_emit('comet_msg_slave_signal_restart')
             }
         }
@@ -322,15 +354,20 @@ function CometServer(options)
 
             comet_server_signal().connect(false,'comet_msg_slave_add_subscription_and_restart', function(p1,arg)// подключение на сигнал переподписки от других вкладок
             {
-                console.log([p1,arg])
-                thisObj.subscription(arg[1][1])
-                thisObj.restart()
+                //console.log([p1,arg])
+                thisObj.subscription(p1)
             })
         }
 
         this.conect_to_server = function()
         {
             var thisObj = this
+
+	    if(this.in_conect_to_server){ return; }
+
+	    this.in_conect_to_server = true;
+
+
             if(!this.is_master) this.setAsMaster()
 
             console.log("Соединение с сервером");
@@ -360,64 +397,51 @@ function CometServer(options)
                 {
                     var re = thisObj.request.responseText;
 
-                                    console.log("Входящие сообщение:"+re);
-                                    /**
-                                     * Структура входящих сообщений
-                                     *
-                                     * Сообщение представляет JSON
-                                     * {
-                                     *  event:0,
-                                     *  error:0, Ошибки если ноль то их нет
-                                     *  msg:"", Текст сообщения json закодированый в base64
-                                     * }
-                                     *
-                                     *  event - 0 если сообщение было передано конкретному пользователю по его id в системе
-                                     *  event > 0 если сообщение было передано конкретному пользователю как подписчику на кокое либо событие сайта
-                                     *  event - 2 было добавлено объявление
-                                     */
+                    console.log("Входящие сообщение:"+re);
+                    var lineArray = re.replace(/^\s+|\s+$/, '').split('\n')
+                    for(var i in lineArray)
+                    {
 
-                                    var lineArray = re.replace(/^\s+|\s+$/, '').split('\n')
-                                    for(var i in lineArray)
-                                    {
-                                        var rj = JSON.parese(lineArray[i])
-                                        rj = rj[0]
-                                        console.log(rj);
+                        try{
+                            console.log(lineArray[i]);
+                            var rj = JSON.parse(lineArray[i])
+                        }
+                        catch (failed)
+                        {
+                            if(thisObj.in_abort )
+                            {
+                                return false;
+                            }
 
-                                        if(thisObj.in_abort === true && rj === undefined)
-                                        {
-                                            return false;
-                                        }
-                                        else if(rj === undefined)
-                                        {
-                                          console.log("Ошибка в xhr, переподключение через "+(thisObj.time_to_reconect_on_error) +" секунды.");
-                                          setTimeout(function(){thisObj.conect_to_server()}, thisObj.time_to_reconect_on_error )
-                                          return false;
-                                        }
+                            thisObj.in_conect_to_server = false;
+                            console.log("Ошибка в xhr, переподключение через "+(thisObj.time_to_reconect_on_error) +" секунды.");
+                            setTimeout(function(){thisObj.conect_to_server()}, thisObj.time_to_reconect_on_error )
+                            return false;
+                        }
 
-                                        /**
-                                         * Если событие rj.event = 0 то это лично направленое сообщение  @todo Проверить???
-                                         */
-                                        if(rj.event === 0 && rj.msg !== undefined)
-                                        {
-                                           rj.msg = base64_decode(rj.msg)
-                                           rj.msg = eval("["+rj.msg+"]");
-                                           rj.msg = rj.msg[0]
+                        if( rj.msg !== undefined )
+                        {
+                            rj.msg = base64_decode(rj.msg)
+                            try{
+                                console.log(["msg", rj.msg]);
+                                rj.msg = JSON.parse(rj.msg)
 
-                                           comet_server_signal().send_emit("server_msg", rj.msg)
-                                           if(rj.msg.name !== undefined )
-                                           {
-                                               comet_server_signal().send_emit("server_comet_msg_"+rj.msg.name, rj.msg)
-                                           }
-                                        }
+                                if(rj.msg.name !== undefined )
+                                {
+                                    comet_server_signal().send_emit("comet_"+rj.msg.name, rj.msg)
+                                }
+                            }
+                            catch (failed){  }
+                            comet_server_signal().send_emit("server_msg", rj.msg)
+                        }
+                    }
 
-                                        comet_server_signal().send_emit('server_event', rj)
-
-                                    }
-
-                                    thisObj.conect_to_server();
+                    thisObj.in_conect_to_server = false;
+                    thisObj.conect_to_server();
                 }
                 else
                 {
+		    thisObj.in_conect_to_server = false;
                     console.log("Ошибка в xhr, переподключение через "+(thisObj.time_to_reconect_on_error) +" секунды.");
                     setTimeout(function(){ thisObj.conect_to_server() }, thisObj.time_to_reconect_on_error )
                 }
@@ -434,8 +458,8 @@ function CometServer(options)
              if(callback === undefined)
              {
                  callback = function(){}
-             } 
-             
+             }
+
              var thisObj = this;
              console.log("Попыдка соединения с сервером");
 
@@ -505,15 +529,17 @@ function CometServer(options)
         this.options.user_id = getCookie(this.options.CometUserid)
     }
 
-    if(!this.options.dev_id)
+    if(!this.options.dev_id && !__CometServer)
     {
-        console.log("CometServerApi:Не указан dev_id")
+        console.error("CometServerApi:Не указан dev_id")
     }
 
-    if(!this.server)
+    if(!__CometServer)
     {
-        this.server = new CometServerApi(this.options);
+        __CometServer = new CometServerApi(this.options);
     }
 
-    return this.server;
+    return __CometServer;
 }
+
+
