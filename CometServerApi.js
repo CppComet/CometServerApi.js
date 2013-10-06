@@ -226,10 +226,7 @@ function CometServer(options)
         this.options = opt
         this.arg= "";
 
-        this.url = '//client'+this.options.dev_id+'.app.comet-server.ru/?type=Long-Polling&sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id;
-
         this.subscription_array = new Array();
-        this.user_id = 0;
         this.custom_id = Math.random()+""+Math.random()
         console.log([this.custom_id , opt])
 
@@ -246,10 +243,12 @@ function CometServer(options)
         /**
          * Добавляет подписки
          */
-        this.subscription = function(name)
+        this.subscription = function(name, callback)
         {
             if(name !== undefined && name.length > 2)
             {
+                if(callback !== undefined) comet_server_signal().connect("pipe_"+name, callback);
+                
                 for(var i in this.subscription_array)
                 {
                     if(this.subscription_array[i] === name )
@@ -273,10 +272,44 @@ function CometServer(options)
 
         }
 
-        this.start = function(callback)
+        this.start = function(opt)
         {
-           this.in_abort = false;
-           this.conect(callback)
+            
+            
+            if(opt !== undefined)
+            {
+                this.options = opt
+            }
+            
+            if(this.options === undefined)
+            {
+                this.options = {}
+            }
+            
+            if(!this.options.CookieKyeName)
+            {
+                this.options.CookieKyeName = 'CometUserKey'
+            }
+
+            if(!this.options.CookieIdName)
+            {
+                this.options.CookieIdName = 'CometUserid'
+            }
+
+            if(!this.options.user_key)
+            {
+                this.options.user_key = getCookie(this.options.CookieKyeName)
+            }
+
+            if(!this.options.user_id)
+            {
+                this.options.user_id = getCookie(this.options.CometUserid)
+            }
+            this.url = '//client'+this.options.dev_id+'.app.comet-server.ru/?type=Long-Polling&sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id;
+
+
+            this.in_abort = false;
+            this.conect()
         }
 
         this.stop = function()
@@ -423,14 +456,32 @@ function CometServer(options)
                             rj.msg = base64_decode(rj.msg)
                             try{
                                 console.log(["msg", rj.msg]);
-                                rj.msg = JSON.parse(rj.msg)
-
-                                if(rj.msg.name !== undefined )
+                                var pmsg = JSON.parse(rj.msg)
+                                
+                                if(pmsg !== undefined)
                                 {
-                                    comet_server_signal().send_emit("comet_"+rj.msg.name, rj.msg)
+                                    rj.msg = pmsg
                                 }
                             }
                             catch (failed){  }
+                            
+                            if(rj.pipe !== undefined)
+                            {
+                                comet_server_signal().send_emit("pipe_"+rj.pipe, rj.msg)
+
+                                if(rj.msg.event_name !== undefined && ( typeof rj.msg.event_name === "string" || typeof rj.msg.event_name === "number" ) )
+                                {
+                                    comet_server_signal().send_emit("pipe_"+rj.pipe+"_event_"+rj.msg.event_name, rj.msg)
+                                }
+                                
+                                comet_server_signal().send_emit("event_"+rj.msg.event_name, rj.msg)
+
+                            }
+                            else if(rj.msg.event_name !== undefined && ( typeof rj.msg.event_name === "string" || typeof rj.msg.event_name === "number" ) )
+                            {
+                                comet_server_signal().send_emit("event_"+rj.msg.event_name, rj.msg)
+                            }
+                            
                             comet_server_signal().send_emit("server_msg", rj.msg)
                         }
                     }
@@ -527,12 +578,7 @@ function CometServer(options)
     {
         this.options.user_id = getCookie(this.options.CometUserid)
     }
-
-    if(!this.options.dev_id && !__CometServer)
-    {
-        console.error("CometServerApi:Не указан dev_id")
-    }
-
+  
     if(!__CometServer)
     {
         __CometServer = new CometServerApi(this.options);
