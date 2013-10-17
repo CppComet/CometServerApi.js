@@ -49,7 +49,7 @@ function utf8(utftext) {
             i += 3;
         }
 
-    } 
+    }
     return string;
 }
 
@@ -199,18 +199,34 @@ if(!comet_server_signal.prototype.init)
     {
         window.addEventListener('storage', function(e)
         {
-            var data = JSON.parse(e.newValue);
-            if(this.debug) console.log( data.name )
-            comet_server_signal().emit( data.name, data.param )
+            try{
+                var data = JSON.parse(e.newValue);
+                if(data !== undefined && data.name !== undefined  )
+                {
+                    if(this.debug > 1) console.log( data )
+                    comet_server_signal().emit( data.name, data.param )
+                }
+            }
+            catch (failed)
+            {
+            }
         }, false);
     }
     else
     {
         document.attachEvent('onstorage', function(e)
         {
-            var data = JSON.parse(e.newValue);
-            if(this.debug) console.log( data.name )
-            comet_server_signal().emit( data.name, data.param )
+            try{
+                var data = JSON.parse(e.newValue);
+                if(data !== undefined && data.name !== undefined  )
+                {
+                    if(this.debug > 1) console.log( data )
+                    comet_server_signal().emit( data.name, data.param )
+                }
+            }
+            catch (failed)
+            {
+            }
         } );
     }
 }
@@ -225,10 +241,12 @@ function CometServer(options)
     {
         this.options = opt
         this.arg= "";
+        this.is_master = false;
+        this.in_conect_to_server = false;
+        this.in_try_conect = false;
 
         this.subscription_array = new Array();
         this.custom_id = Math.random()+""+Math.random()
-        console.log([this.custom_id , opt])
 
         /**
          * Время на переподключение в милисекундах
@@ -245,10 +263,11 @@ function CometServer(options)
          */
         this.subscription = function(name, callback)
         {
+            var thisObj = this;
             if(name !== undefined && name.length > 2)
             {
                 if(callback !== undefined) comet_server_signal().connect("pipe_"+name, callback);
-                
+
                 for(var i in this.subscription_array)
                 {
                     if(this.subscription_array[i] === name )
@@ -261,7 +280,21 @@ function CometServer(options)
                 if(this.is_master)
                 {
                     console.log('add subscription:'+name)
-                    this.restart()
+
+                    if(window.WebSocket)
+                    {
+                        comet_server_signal().connect("subscription_msg_slot", "comet_msg_socket_open", function()
+                        {
+                            thisObj.send_msg(thisObj.subscription_array.join("\n"));
+                            comet_server_signal().disconnect("subscription_msg_slot", "comet_msg_socket_open");
+                        })
+                        
+                    }
+                    else
+                    {
+                        this.restart()
+                    }
+
                 }
                 else
                 {
@@ -269,23 +302,22 @@ function CometServer(options)
                     comet_server_signal().send_emit('comet_msg_slave_add_subscription_and_restart',name)
                 }
             }
-
         }
 
         this.start = function(opt)
         {
-            
-            
             if(opt !== undefined)
             {
                 this.options = opt
             }
-            
+
+            console.log([this.custom_id , opt])
+
             if(this.options === undefined)
             {
                 this.options = {}
             }
-            
+
             if(!this.options.CookieKyeName)
             {
                 this.options.CookieKyeName = 'CometUserKey'
@@ -305,8 +337,15 @@ function CometServer(options)
             {
                 this.options.user_id = getCookie(this.options.CometUserid)
             }
-            this.url = '//client'+this.options.dev_id+'.app.comet-server.ru/?type=Long-Polling&sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id;
 
+            if(window.WebSocket)
+            {
+                this.url = 'ws://ws-client'+this.options.dev_id+'.app.comet-server.ru/ws/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id;
+            }
+            else
+            {
+                this.url = '//client'+this.options.dev_id+'.app.comet-server.ru/?type=Long-Polling&sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id;
+            }
 
             this.in_abort = false;
             this.conect()
@@ -317,7 +356,15 @@ function CometServer(options)
             if(this.is_master)
             {
                 this.in_abort = true;
-                this.request.abort();
+
+                if(window.WebSocket)
+                {
+                    this.socket.close();
+                }
+                else
+                {
+                    this.request.abort();
+                }
             }
             else
             {
@@ -342,12 +389,21 @@ function CometServer(options)
                     clearTimeout( this.restart_time_id )
                 }
 
-
+                if(!thisObj.in_abort)
+                {
+                    thisObj.in_abort = true;
+                    if(window.WebSocket)
+                    {
+                        thisObj.socket.close();
+                    }
+                    else
+                    {
+                        thisObj.request.abort();
+                    }
+                }
 
                 this.restart_time_id = setTimeout(function()
                 {
-		    thisObj.in_abort = true;
-                    thisObj.request.abort();
                     thisObj.in_abort = false;
                     thisObj.conect_to_server(callback, callback_arg)
                     console.error('msg master restart')
@@ -375,27 +431,93 @@ function CometServer(options)
 
             comet_server_signal().connect(false,'comet_msg_slave_signal_restart', function(p,arg) // подключение на сигнал рестарта от других вкладок
             {
-                console.log([p1,arg])
+                console.log([p,arg])
                 thisObj.restart()
             })
 
             comet_server_signal().connect(false,'comet_msg_slave_signal_stop', function(p,arg)    // подключение на сигнал остоновки от других вкладок
             {
-                console.log([p1,arg])
+                console.log([p,arg])
                 thisObj.stop()
             })
 
-            comet_server_signal().connect(false,'comet_msg_slave_add_subscription_and_restart', function(p1,arg)// подключение на сигнал переподписки от других вкладок
+            comet_server_signal().connect(false,'comet_msg_slave_signal_start', function(p,arg)    // подключение на сигнал запуска от других вкладок
             {
-                thisObj.subscription(p1)
+                console.log([p,arg])
+                thisObj.start()
             })
+
+            comet_server_signal().connect(false,'comet_msg_slave_add_subscription_and_restart', function(p,arg)// подключение на сигнал переподписки от других вкладок
+            {
+                console.log([p,arg])
+                thisObj.subscription(p)
+            })
+        }
+
+
+        /**
+         * Обрабатывает распарсеное входящее сообщение
+         */
+        this.msg_cultivate = function( rj )
+        {
+            if( rj.msg !== undefined )
+            {
+                rj.msg = base64_decode(rj.msg)
+                try{
+                    console.log(["msg", rj.msg]);
+                    var pmsg = JSON.parse(rj.msg)
+
+                    if(pmsg !== undefined)
+                    {
+                        rj.msg = pmsg
+                    }
+                }
+                catch (failed){  }
+
+                if(rj.pipe !== undefined)
+                {
+                    comet_server_signal().send_emit("pipe_"+rj.pipe, rj.msg)
+
+                    if(rj.msg.event_name !== undefined && ( typeof rj.msg.event_name === "string" || typeof rj.msg.event_name === "number" ) )
+                    {
+                        comet_server_signal().send_emit("pipe_"+rj.pipe+"_event_"+rj.msg.event_name, rj.msg)
+                    }
+
+                    comet_server_signal().send_emit("event_"+rj.msg.event_name, rj.msg)
+                }
+                else if(rj.msg.event_name !== undefined && ( typeof rj.msg.event_name === "string" || typeof rj.msg.event_name === "number" ) )
+                {
+                    comet_server_signal().send_emit("msg_"+rj.msg.event_name, rj.msg)
+                    comet_server_signal().send_emit("event_"+rj.msg.event_name, rj.msg)
+                }
+
+
+                comet_server_signal().send_emit("server_msg", rj.msg)
+            }
+        }
+
+        this.send_msg = function(msg)
+        {
+            if(!window.WebSocket)
+            {
+                return false;
+            }
+            
+            if(this.socket &&  this.socket.readyState === 1)
+            {
+                return this.socket.send(msg);
+            }
         }
 
         this.conect_to_server = function()
         {
             var thisObj = this
 
-	    if(this.in_conect_to_server){ return; }
+	    if(this.in_conect_to_server)
+            {
+                console.log("Соединение с сервером уже установлено.");
+                return;
+            }
 
 	    this.in_conect_to_server = true;
 
@@ -404,107 +526,148 @@ function CometServer(options)
 
             console.log("Соединение с сервером");
 
-            try {
-                this.request = new XMLHttpRequest();
-            } catch (trymicrosoft) {
-                try {
-                    this.request = new ActiveXObject("Msxml2.XMLHTTP");
-                } catch (othermicrosoft) {
-                    try {
-                        this.request = new ActiveXObject("Microsoft.XMLHTTP");
-                    } catch (failed) {
-                        this.request = false;
-                    }
-                }
-            }
 
-            this.request.onreadystatechange = function()
+            if(window.WebSocket)
             {
-                if (thisObj.request.readyState !== 4 )
+                this.socket = new WebSocket(this.url); 
+                comet_server_signal().connect("conect_to_server_msg_slot", "comet_msg_socket_open", function()
                 {
-                    return;
-                }
+                    thisObj.send_msg(thisObj.subscription_array.join("\n"));
+                    comet_server_signal().disconnect("conect_to_server_msg_slot", "comet_msg_socket_open");
+                })
+                
+                
+                
+                this.socket.onopen = function() {
+                    console.log("WS Соединение установлено.");
+                    comet_server_signal().emit('comet_msg_socket_open')
+                };
 
-                if( thisObj.request.status === 200 )
+                this.socket.onclose = function(event)
                 {
-                    var re = thisObj.request.responseText;
+                    if (event.wasClean)
+                    {
+                      console.log('WS Соединение закрыто чисто');
+                    }
+                    else
+                    {
+                      console.log('WS Обрыв соединения'); // например, "убит" процесс сервера
+                      thisObj.socket.close();
+                      thisObj.in_conect_to_server = false;
+                      setTimeout(function(){ thisObj.conect_to_server() }, thisObj.time_to_reconect_on_error*10 )
+                      
+                    }
+                    console.log('WS Код: ' + event.code + ' причина: ' + event.reason);
+                };
 
-                    console.log("Входящие сообщение:"+re);
-                    var lineArray = re.replace(/^\s+|\s+$/, '').split('\n')
+                this.socket.onmessage = function(event)
+                {
+                    console.log("WS Входящие сообщение:"+event.data);
+                    var lineArray = event.data.replace(/^\s+|\s+$/, '').split('\n')
                     for(var i in lineArray)
                     {
-
                         try{
                             console.log(lineArray[i]);
                             var rj = JSON.parse(lineArray[i])
                         }
                         catch (failed)
                         {
-                            if(thisObj.in_abort )
-                            {
-                                return false;
-                            }
-
-                            thisObj.in_conect_to_server = false;
-                            console.log("Ошибка в xhr, переподключение через "+(thisObj.time_to_reconect_on_error) +" секунды.");
-                            setTimeout(function(){thisObj.conect_to_server()}, thisObj.time_to_reconect_on_error )
                             return false;
                         }
 
-                        if( rj.msg !== undefined )
-                        {
-                            rj.msg = base64_decode(rj.msg)
-                            try{
-                                console.log(["msg", rj.msg]);
-                                var pmsg = JSON.parse(rj.msg)
-                                
-                                if(pmsg !== undefined)
-                                {
-                                    rj.msg = pmsg
-                                }
-                            }
-                            catch (failed){  }
-                            
-                            if(rj.pipe !== undefined)
-                            {
-                                comet_server_signal().send_emit("pipe_"+rj.pipe, rj.msg)
+                        thisObj.msg_cultivate(rj)
 
-                                if(rj.msg.event_name !== undefined && ( typeof rj.msg.event_name === "string" || typeof rj.msg.event_name === "number" ) )
-                                {
-                                    comet_server_signal().send_emit("pipe_"+rj.pipe+"_event_"+rj.msg.event_name, rj.msg)
-                                }
-                                
-                                comet_server_signal().send_emit("event_"+rj.msg.event_name, rj.msg)
+                    }
+                };
 
-                            }
-                            else if(rj.msg.event_name !== undefined && ( typeof rj.msg.event_name === "string" || typeof rj.msg.event_name === "number" ) )
-                            {
-                                comet_server_signal().send_emit("event_"+rj.msg.event_name, rj.msg)
-                            }
-                            
-                            comet_server_signal().send_emit("server_msg", rj.msg)
+                this.socket.onerror = function(error) {
+                    console.log("Ошибка " + error.message);
+                };
+            }
+            else
+            {
+                try {
+                    this.request = new XMLHttpRequest();
+                } catch (trymicrosoft) {
+                    try {
+                        this.request = new ActiveXObject("Msxml2.XMLHTTP");
+                    } catch (othermicrosoft) {
+                        try {
+                            this.request = new ActiveXObject("Microsoft.XMLHTTP");
+                        } catch (failed) {
+                            this.request = false;
                         }
                     }
-
-                    thisObj.in_conect_to_server = false;
-                    thisObj.conect_to_server();
                 }
-                else
+
+                this.request.onreadystatechange = function()
                 {
-		    thisObj.in_conect_to_server = false;
-                    console.log("Ошибка в xhr, переподключение через "+(thisObj.time_to_reconect_on_error) +" секунды.");
-                    setTimeout(function(){ thisObj.conect_to_server() }, thisObj.time_to_reconect_on_error )
-                }
-            };
+                    if (thisObj.request.readyState !== 4 )
+                    {
+                        return;
+                    }
 
-            this.request.open("POST", this.url, true);
-            this.request.send(this.subscription_array.join("\n")); // Именно здесь отправляются данные
+                    if( thisObj.request.status === 200 && thisObj.in_abort !== true)
+                    {
+                        var re = thisObj.request.responseText;
+
+                        console.log("Входящие сообщение:"+re);
+                        var lineArray = re.replace(/^\s+|\s+$/, '').split('\n')
+                        for(var i in lineArray)
+                        {
+
+                            try{
+                                console.log(lineArray[i]);
+                                var rj = JSON.parse(lineArray[i])
+                            }
+                            catch (failed)
+                            {
+                                thisObj.in_conect_to_server = false;
+                                console.log("Ошибка в xhr, переподключение через "+(thisObj.time_to_reconect_on_error) +" секунды.");
+                                setTimeout(function(){thisObj.conect_to_server()}, thisObj.time_to_reconect_on_error )
+                                return false;
+                            }
+
+
+                            thisObj.msg_cultivate(rj)
+                        }
+
+                        thisObj.in_conect_to_server = false;
+                        thisObj.conect_to_server();
+                    }
+                    else
+                    {
+                        thisObj.in_conect_to_server = false;
+                        if(thisObj.in_abort !== true)
+                        {
+                            console.log("Ошибка в xhr, переподключение через "+(thisObj.time_to_reconect_on_error) +" секунды.");
+                            setTimeout(function(){ thisObj.conect_to_server() }, thisObj.time_to_reconect_on_error )
+                        }
+                    }
+                };
+
+                this.request.open("POST", this.url, true);
+                this.request.send(this.subscription_array.join("\n")); // Именно здесь отправляются данные
+            }
+
         }
 
-
-        this.is_master = false
         this.conect = function(callback)
         {
+             if(this.is_master)
+             {
+                 return this.conect_to_server();
+             }
+
+             if(this.in_try_conect)
+             {
+                 console.log("Соединение с сервером уже установлено на другой вкладке");
+                 comet_server_signal().send_emit('comet_msg_slave_signal_start')
+                 return false;
+             }
+
+             this.in_try_conect = true;
+
              if(callback === undefined)
              {
                  callback = function(){}
@@ -517,6 +680,8 @@ function CometServer(options)
              var time_id = setTimeout(function()
              {
                 comet_server_signal().disconnect("comet_msg_conect", 'comet_msg_master_signal')
+
+                thisObj.in_try_conect = false;
                 thisObj.conect_to_server()
                 callback()
              }, thisObj.start_timer )
@@ -544,6 +709,7 @@ function CometServer(options)
                     last_timeout_id = setTimeout(function()// Поставим таймер, если этот таймер не будет отменён за this.start_timer милисекунд то считаем себя мастер вкладкой так как предыдущая мастер вкладка была закрыта
                     {
                         comet_server_signal().disconnect('comet_msg_master_signal')
+                        thisObj.in_try_conect = false;
                         thisObj.conect_to_server()
                     }, thisObj.start_timer);
                 }
@@ -552,36 +718,9 @@ function CometServer(options)
 
     }
 
-    if(options === undefined)
-    {
-        options = {}
-    }
-
-    this.options = options;
-
-    if(!this.options.CookieKyeName)
-    {
-        this.options.CookieKyeName = 'CometUserKey'
-    }
-
-    if(!this.options.CookieIdName)
-    {
-        this.options.CookieIdName = 'CometUserid'
-    }
-
-    if(!this.options.user_key)
-    {
-        this.options.user_key = getCookie(this.options.CookieKyeName)
-    }
-
-    if(!this.options.user_id)
-    {
-        this.options.user_id = getCookie(this.options.CometUserid)
-    }
-  
     if(!__CometServer)
     {
-        __CometServer = new CometServerApi(this.options);
+        __CometServer = new CometServerApi();
     }
 
     return __CometServer;
