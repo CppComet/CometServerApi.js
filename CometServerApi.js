@@ -293,7 +293,7 @@ function CometServer(options)
         this.restart_time_id = false
 
 
-        this.start_timer = 3000;
+        this.start_timer = 600;
 
         /**
          * Добавляет подписки
@@ -508,6 +508,13 @@ function CometServer(options)
                 console.log([p,arg])
                 thisObj.subscription(p)
             })
+             
+            comet_server_signal().connect(false,'comet_msg_slave_send_msg', function(p,arg)// подключение на сигнал переподписки от других вкладок
+            {
+                console.log([p,arg])
+                thisObj.send_msg(p)
+            })
+            
         }
 
 
@@ -580,7 +587,15 @@ function CometServer(options)
          */
         this.web_pipe_send = function(pipe_name, msg)
         {
-             return this.send_msg("web_pipe\n"+pipe_name+"\n"+base64_encode(msg));
+            if(this.is_master)
+            {
+                return this.send_msg("web_pipe\n"+pipe_name+"\n"+base64_encode(msg));
+            }
+            else
+            {
+                comet_server_signal().send_emit('comet_msg_slave_send_msg',"web_pipe\n"+pipe_name+"\n"+base64_encode(msg))
+            }
+            
         }
 
         this.conect_to_server = function()
