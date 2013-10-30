@@ -276,6 +276,11 @@ function CometServer(options)
     console.log(options)
     var CometServerApi = function(opt)
     {
+	this.version = "1.32";
+
+	this.major_version = 1;
+	this.minor_version = 32;
+
         this.options = opt
         this.arg= "";
         this.is_master = false;
@@ -379,11 +384,11 @@ function CometServer(options)
 
             if(window.WebSocket)
             {
-                this.url = 'ws://ws-client'+this.options.dev_id+'.app.comet-server.ru/ws/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id;
+                this.url = 'ws://ws-client'+this.options.dev_id+'.app.comet-server.ru/ws/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
             }
             else
             {
-                this.url = '//client'+this.options.dev_id+'.app.comet-server.ru/?type=Long-Polling&sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id;
+                this.url = '//client'+this.options.dev_id+'.app.comet-server.ru/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
             }  
 
             if(this.options.user_key && this.options.user_key.length > 10)
@@ -815,4 +820,5 @@ function CometServer(options)
 
     return __CometServer;
 }
+
 
