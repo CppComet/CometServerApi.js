@@ -53,9 +53,9 @@ function utf8(utftext) {
     return string;
 }
 
-function base64_encode( data ) 
+function base64_encode( data )
 {	// Encodes data with MIME base64
-	// 
+	//
 	// +   original by: Tyler Akins (http://rumkin.com)
 	// +   improved by: Bayron Guevara
 
@@ -276,10 +276,10 @@ function CometServer(options)
     console.log(options)
     var CometServerApi = function(opt)
     {
-	this.version = "1.32";
+	this.version = "1.33";
 
 	this.major_version = 1;
-	this.minor_version = 32;
+	this.minor_version = 33;
 
         this.options = opt
         this.arg= "";
@@ -298,7 +298,7 @@ function CometServer(options)
         this.restart_time_id = false
 
 
-        this.start_timer = 600;
+        this.start_timer = 1200;
 
         /**
          * Добавляет подписки
@@ -326,13 +326,13 @@ function CometServer(options)
                     if(window.WebSocket)
                     {
                         if(thisObj.send_msg("subscription\n"+thisObj.subscription_array.join("\n")) === false)
-                        { 
+                        {
                             comet_server_signal().connect("subscription_msg_slot", "comet_msg_socket_open", function()
                             {
                                 thisObj.send_msg("subscription\n"+thisObj.subscription_array.join("\n"));
                                 comet_server_signal().disconnect("subscription_msg_slot", "comet_msg_socket_open");
                             })
-                        } 
+                        }
                     }
                     else
                     {
@@ -389,7 +389,7 @@ function CometServer(options)
             else
             {
                 this.url = '//client'+this.options.dev_id+'.app.comet-server.ru/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
-            }  
+            }
 
             if(this.options.user_key && this.options.user_key.length > 10)
             {
@@ -482,13 +482,14 @@ function CometServer(options)
         {
             var thisObj = this;
             this.is_master = true;
+            console.log("setAsMaster")
 
             comet_server_signal().send_emit('comet_msg_master_signal')        //  для уведомления всех остальных вкладок о своём превосходстве
             comet_server_signal().send_emit('comet_msg_new_master')           //  для уведомления всех что надо переподписатся @todo реализовать переподписку событий
             setInterval(function()                                      // Поставим таймер для уведомления всех остальных вкладок о своём превосходстве
             {
                comet_server_signal().send_emit('comet_msg_master_signal')
-            }, this.start_timer/3);
+            }, this.start_timer/6);
 
             comet_server_signal().connect(false,'comet_msg_slave_signal_restart', function(p,arg) // подключение на сигнал рестарта от других вкладок
             {
@@ -513,13 +514,13 @@ function CometServer(options)
                 console.log([p,arg])
                 thisObj.subscription(p)
             })
-             
+
             comet_server_signal().connect(false,'comet_msg_slave_send_msg', function(p,arg)// подключение на сигнал переподписки от других вкладок
             {
                 console.log([p,arg])
                 thisObj.send_msg(p)
             })
-            
+
         }
 
 
@@ -570,7 +571,7 @@ function CometServer(options)
             {
                 return false;
             }
-            
+
             if(this.socket &&  this.socket.readyState === 1)
             {
                 //console.log("WebSocket-send-msg:"+msg)
@@ -582,7 +583,7 @@ function CometServer(options)
                 return false;
             }
         }
-        
+
         /**
          * Вернёт true в случаи отправки
          * Отчёт о доставке прийдёт в канал _answer
@@ -600,7 +601,7 @@ function CometServer(options)
             {
                 comet_server_signal().send_emit('comet_msg_slave_send_msg',"web_pipe\n"+pipe_name+"\n"+base64_encode(msg))
             }
-            
+
         }
 
         this.conect_to_server = function()
@@ -623,16 +624,16 @@ function CometServer(options)
 
             if(window.WebSocket)
             {
-                this.socket = new WebSocket(this.url); 
-                comet_server_signal().connect("conect_to_server_msg_slot", "comet_msg_socket_open", function() 
+                this.socket = new WebSocket(this.url);
+                comet_server_signal().connect("conect_to_server_msg_slot", "comet_msg_socket_open", function()
                 {
                     // Требуется для того чтобы подписатся на те события на которые были попытки подписатся ещё до установления этой вкладки мастером
                     thisObj.send_msg("subscription\n"+thisObj.subscription_array.join("\n"));
                     comet_server_signal().disconnect("conect_to_server_msg_slot", "comet_msg_socket_open");
                 })/**/
-                
-                
-                
+
+
+
                 this.socket.onopen = function() {
                     console.log("WS Соединение установлено.");
                     comet_server_signal().send_emit('comet_msg_socket_open')
@@ -650,7 +651,7 @@ function CometServer(options)
                       thisObj.socket.close();
                       thisObj.in_conect_to_server = false;
                       setTimeout(function(){ thisObj.conect_to_server() }, thisObj.time_to_reconect_on_error*10 )
-                      
+
                     }
                     console.log('WS Код: ' + event.code + ' причина: ' + event.reason);
                 };
@@ -771,17 +772,9 @@ function CometServer(options)
              var thisObj = this;
              console.log("Попыдка соединения с сервером");
 
-             // Создадим таймер, если этот таймер не будет отменён за this.start_timer милисекунд то считаем себя мастер вкладкой
-             var time_id = setTimeout(function()
-             {
-                comet_server_signal().disconnect("comet_msg_conect", 'comet_msg_master_signal')
 
-                thisObj.in_try_conect = false;
-                thisObj.conect_to_server()
-                callback()
-             }, thisObj.start_timer )
-
-             var last_timeout_id = false
+             var time_id = false
+             var last_time_id = false
 
              // Подключаемся на уведомления от других вкладок о том что сервер работает, если за this.start_timer милисекунд уведомление произойдёт то отменим поставленый ранее таймер
              comet_server_signal().connect("comet_msg_conect",'comet_msg_master_signal', function()
@@ -791,24 +784,39 @@ function CometServer(options)
                     clearTimeout( time_id )
                     time_id = false;
                     console.log("Соединение с сервером отменено");
-                }
-                else
-                {
-                    if(last_timeout_id !== false) //  отменим другой поставленый ранее таймер если это не первый вызов
-                    {
-                        clearTimeout( last_timeout_id )
-                        last_timeout_id = false;
-                        //console.log("Соединение с сервером поддерживается на другой вкладке");
-                    }
 
-                    last_timeout_id = setTimeout(function()// Поставим таймер, если этот таймер не будет отменён за this.start_timer милисекунд то считаем себя мастер вкладкой так как предыдущая мастер вкладка была закрыта
+                    comet_server_signal().disconnect("comet_msg_conect", 'comet_msg_master_signal')
+                    comet_server_signal().connect("comet_msg_conect_to_master_signal",'comet_msg_master_signal', function()
                     {
-                        comet_server_signal().disconnect('comet_msg_master_signal')
-                        thisObj.in_try_conect = false;
-                        thisObj.conect_to_server()
-                    }, thisObj.start_timer);
+                        if(last_time_id !== false)
+                        {
+                            clearTimeout( last_time_id )
+                        }
+                        
+                        // Создадим таймер, если этот таймер не будет отменён за this.start_timer милисекунд то считаем себя мастер вкладкой
+                        last_time_id = setTimeout(function()
+                        {
+                           comet_server_signal().disconnect("comet_msg_conect_to_master_signal", 'comet_msg_master_signal')
+
+                           thisObj.in_try_conect = false;
+                           thisObj.conect_to_server()
+                           callback()
+                        }, thisObj.start_timer )
+                    })
+ 
                 }
              })
+
+             // Создадим таймер, если этот таймер не будет отменён за this.start_timer милисекунд то считаем себя мастер вкладкой
+             time_id = setTimeout(function()
+             {
+                comet_server_signal().disconnect("comet_msg_conect", 'comet_msg_master_signal')
+
+                thisObj.in_try_conect = false;
+                thisObj.conect_to_server()
+                callback()
+             }, thisObj.start_timer )
+
         }
 
     }
@@ -820,5 +828,4 @@ function CometServer(options)
 
     return __CometServer;
 }
-
 
