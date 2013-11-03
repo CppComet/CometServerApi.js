@@ -345,53 +345,142 @@ function CometServer(options)
 
 
         this.start_timer = 1200;
+        this.reg_exp = new RegExp(/^([^.]+)\.([^.]+)$/)
 
         /**
-         * Добавляет подписки
+         * Добавляет подписки на каналы, события в каналах и отчёты о доставке сообщений в каналы.
+         * 
+         * Подписка на канал "Имя_канала"
+         * CometServer().subscription("Имя_канала", function(e){ console.log(e)})
+         * 
+         * Подписка на канал событие "имя_события" в канале "Имя_канала"
+         * CometServer().subscription("Имя_канала.имя_события", function(e){ console.log(e)})
+         * 
+         * Подписка на отчёт о доставке в канал "Имя_канала"
+         * CometServer().subscription("#Имя_канала", function(e){ console.log(e)})
+         * 
+         * Подписка на отчёт о доставке в канал "Имя_канала"
+         * CometServer().subscription("answer_to_Имя_канала", function(e){ console.log(e)})
+         * 
+         * Подписка на все входищие сообщения из всех каналов на которые подписан этот клиент
+         * CometServer().subscription("", function(e){ console.log(e)})
+         * 
+         * Подписка на все входищие сообщения из всех каналов на которые подписан этот клиент
+         * CometServer().subscription(function(e){ console.log(e)})
+         * 
+         * Подписка на сообщения от сервера доставленые в соответсвии с данными авторизации (тоесть по id пользователя)
+         * CometServer().subscription("msg", function(e){ console.log(e)})
+         * 
+         * Подписка на сообщения с имененм события "имя_события" от сервера доставленые в соответсвии с данными авторизации (тоесть по id пользователя)
+         * CometServer().subscription("msg.имя_события", function(e){ console.log(e)})
+         * 
+         * Обратите внимание что дляна имени канала должнеа быть больше 2 символов
+         * @param {string} name Имя канала
+         * @param {function} callback Функция callback
          */
         this.subscription = function(name, callback)
         {
             var thisObj = this;
-            if(name !== undefined && name.length > 2)
+            
+            if(name === undefined )
             {
-                if(callback !== undefined) comet_server_signal().connect("pipe_"+name, callback);
+                return -1;
+            }
+            
+            if(callback === undefined)
+            {
+                callback = function(){};
+            }
+            
+            if(typeof name === "function" )
+            {
+                comet_server_signal().connect("comet_server_msg", name);
+                return 1;
+            }
+             
+            if( name === "msg" || /^msg\./.test(name) )
+            {
+                // Подписка на сообщения от сервера доставленые в соответсвии с данными авторизации (тоесть по id пользователя)
+                comet_server_signal().connect(name, callback);
+                return 1;
+            }
+            
+            if(/^answer_to_web_/.test(name)) 
+            {
+                // Подписка на отчёт о доставке
+                comet_server_signal().connect(name, callback);
+                return 1;
+            }
+            else if(/^#/.test(name)) 
+            {
+                // Подписка на отчёт о доставке
+                name = name.replace(/^#/, "answer_to_");
+                comet_server_signal().connect(name, callback);
+                return 1;
+            }
+              
+            if( name === ""  )
+            {   // Подписка на все сообщения разом
+                name = "comet_server_msg";
+            }
+            
+            if(name.length < 2 )
+            {
+                // Имя канала слишком короткое
+                return -1;
+            }
+            
+            comet_server_signal().connect(name, callback);
+            
+            if( name === "comet_server_msg" )
+            {   // Подписка на все сообщения разом
+                return 1;
+            }
+                        
+            if(this.reg_exp.test(name))
+            {
+                var res = this.reg_exp.exec(name);
+                
+                console.log(res)
+                name = res[1];
+            }
 
-                for(var i in this.subscription_array)
+            for(var i in this.subscription_array)
+            {
+                if(this.subscription_array[i] === name )
                 {
-                    if(this.subscription_array[i] === name )
-                    {
-                        return 1;
-                    }
+                    return 1;
                 }
+            }
 
-                this.subscription_array[this.subscription_array.length] = name
-                if(this.is_master)
+            this.subscription_array[this.subscription_array.length] = name
+            if(this.is_master)
+            {
+                console.log('add subscription:'+name)
+
+                if(window.WebSocket)
                 {
-                    console.log('add subscription:'+name)
-
-                    if(window.WebSocket)
+                    if(thisObj.send_msg("subscription\n"+thisObj.subscription_array.join("\n")) === false)
                     {
-                        if(thisObj.send_msg("subscription\n"+thisObj.subscription_array.join("\n")) === false)
+                        comet_server_signal().connect("subscription_msg_slot", "comet_msg_socket_open", function()
                         {
-                            comet_server_signal().connect("subscription_msg_slot", "comet_msg_socket_open", function()
-                            {
-                                thisObj.send_msg("subscription\n"+thisObj.subscription_array.join("\n"));
-                                comet_server_signal().disconnect("subscription_msg_slot", "comet_msg_socket_open");
-                            })
-                        }
+                            thisObj.send_msg("subscription\n"+thisObj.subscription_array.join("\n"));
+                            comet_server_signal().disconnect("subscription_msg_slot", "comet_msg_socket_open");
+                        })
                     }
-                    else
-                    {
-                        this.restart()
-                    }
-
                 }
                 else
                 {
-                    console.log('send_emit:comet_msg_slave_add_subscription_and_restart:'+name)
-                    comet_server_signal().send_emit('comet_msg_slave_add_subscription_and_restart',name)
+                    this.restart()
                 }
+
             }
+            else
+            {
+                console.log('send_emit:comet_msg_slave_add_subscription_and_restart:'+name)
+                comet_server_signal().send_emit('comet_msg_slave_add_subscription_and_restart',name)
+            }
+            return 1;
         }
 
         this.start = function(opt)
@@ -589,25 +678,30 @@ function CometServer(options)
                 }
                 catch (failed){  }
 
-                if(rj.pipe !== undefined)
-                {
-                    comet_server_signal().send_emit("pipe_"+rj.pipe, rj.msg)
+                if(rj.pipe !== undefined) 
+                {// Сообщение из канала.
+                    
+                    comet_server_signal().send_emit(rj.pipe, rj.msg)
 
                     if(rj.msg.event_name !== undefined && ( typeof rj.msg.event_name === "string" || typeof rj.msg.event_name === "number" ) )
                     {
-                        comet_server_signal().send_emit("pipe_"+rj.pipe+"_event_"+rj.msg.event_name, rj.msg)
+                        comet_server_signal().send_emit(rj.pipe+"."+rj.msg.event_name, rj.msg)
                     }
-
-                    comet_server_signal().send_emit("event_"+rj.msg.event_name, rj.msg)
                 }
                 else if(rj.msg.event_name !== undefined && ( typeof rj.msg.event_name === "string" || typeof rj.msg.event_name === "number" ) )
                 {
-                    comet_server_signal().send_emit("msg_"+rj.msg.event_name, rj.msg)
-                    comet_server_signal().send_emit("event_"+rj.msg.event_name, rj.msg)
+                    // Сообщение доставленое по id с указанием event_name
+                    comet_server_signal().send_emit("msg."+rj.msg.event_name, rj.msg)
+                    comet_server_signal().send_emit("msg", rj.msg)
+                }
+                else
+                {
+                    // Сообщение доставленое по id без указания event_name
+                    comet_server_signal().send_emit("msg", rj.msg)
                 }
 
-
-                comet_server_signal().send_emit("server_msg", rj.msg)
+                comet_server_signal().send_emit("comet_server_msg", rj.msg)
+                
             }
         }
 
@@ -643,8 +737,8 @@ function CometServer(options)
 	    {
 		msg = JSON.stringify(msg)
 	    }
-console.log(["web_pipe_send", pipe_name, msg])
-
+            
+            console.log(["web_pipe_send", pipe_name, msg])
             if(this.is_master)
             {
                 return this.send_msg("web_pipe\n"+pipe_name+"\n"+Base64.encode(msg));
