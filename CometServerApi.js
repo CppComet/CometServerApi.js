@@ -664,45 +664,58 @@ function CometServer(options)
          */
         this.msg_cultivate = function( rj )
         {
-            if( rj.msg !== undefined )
+            if( rj.msg === undefined )
             {
-                rj.msg = Base64.decode(rj.msg)
-                try{
-                    console.log(["msg", rj.msg]);
-                    var pmsg = JSON.parse(rj.msg)
-
-                    if(pmsg !== undefined)
-                    {
-                        rj.msg = pmsg
-                    }
-                }
-                catch (failed){  }
-
-                if(rj.pipe !== undefined) 
-                {// Сообщение из канала.
-                    
-                    comet_server_signal().send_emit(rj.pipe, rj.msg)
-
-                    if(rj.msg.event_name !== undefined && ( typeof rj.msg.event_name === "string" || typeof rj.msg.event_name === "number" ) )
-                    {
-                        comet_server_signal().send_emit(rj.pipe+"."+rj.msg.event_name, rj.msg)
-                    }
-                }
-                else if(rj.msg.event_name !== undefined && ( typeof rj.msg.event_name === "string" || typeof rj.msg.event_name === "number" ) )
-                {
-                    // Сообщение доставленое по id с указанием event_name
-                    comet_server_signal().send_emit("msg."+rj.msg.event_name, rj.msg)
-                    comet_server_signal().send_emit("msg", rj.msg)
-                }
-                else
-                {
-                    // Сообщение доставленое по id без указания event_name
-                    comet_server_signal().send_emit("msg", rj.msg)
-                }
-
-                comet_server_signal().send_emit("comet_server_msg", rj.msg)
-                
+                return -1;
             }
+            
+            var web_id = 0;
+            if(/^A::/.test(rj.msg))
+            {
+                // Проверка не пришлоли вместе с данными информации о отправителе.
+                var r = rj.msg.split(";")
+                web_id = r[0].replace("A::", "");
+                rj.msg = r[1];
+            }
+            
+            rj.msg = Base64.decode(rj.msg)
+            try{
+                console.log(["msg", rj.msg, "web_id:"+web_id]);
+                var pmsg = JSON.parse(rj.msg)
+
+                if(pmsg !== undefined)
+                {
+                    rj.msg = pmsg
+                }
+            }
+            catch (failed){  }
+            
+            var msg = {"data": rj.msg, "server_info":{"user_id":web_id}}
+ 
+            if(rj.pipe !== undefined) 
+            {// Сообщение из канала.
+
+                comet_server_signal().send_emit(rj.pipe, msg.data)
+
+                if(msg.data.event_name !== undefined && ( typeof msg.data.event_name === "string" || typeof msg.data.event_name === "number" ) )
+                {
+                    comet_server_signal().send_emit(rj.pipe+"."+msg.data.event_name, msg.data)
+                }
+            }
+            else if(msg.data.event_name !== undefined && ( typeof msg.data.event_name === "string" || typeof msg.data.event_name === "number" ) )
+            {
+                // Сообщение доставленое по id с указанием event_name
+                comet_server_signal().send_emit("msg."+msg.data.event_name, msg.data)
+                comet_server_signal().send_emit("msg", msg.data)
+            }
+            else
+            {
+                // Сообщение доставленое по id без указания event_name
+                comet_server_signal().send_emit("msg", msg.data)
+            }
+
+            comet_server_signal().send_emit("comet_server_msg", msg.data);
+            return 1;
         }
 
         this.send_msg = function(msg)
