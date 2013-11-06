@@ -322,7 +322,7 @@ function CometServer(options)
     console.log(options)
     var CometServerApi = function(opt)
     {
-	this.version = "1.33";
+	this.version = "1.5";
 
 	this.major_version = 1;
 	this.minor_version = 33;
@@ -664,6 +664,7 @@ function CometServer(options)
          */
         this.msg_cultivate = function( rj )
         {
+            console.log("rj", rj);
             if( rj.msg === undefined )
             {
                 return -1;
@@ -690,31 +691,32 @@ function CometServer(options)
             }
             catch (failed){  }
             
-            var msg = {"data": rj.msg, "server_info":{"user_id":web_id}}
+            var msg = {"data": rj.msg.data, "server_info":{"user_id":web_id, pipe:rj.pipe, event:rj.msg.event_name }}
+            console.log(["msg", msg, rj]);
  
             if(rj.pipe !== undefined) 
             {// Сообщение из канала.
 
-                comet_server_signal().send_emit(rj.pipe, msg.data)
+                comet_server_signal().send_emit(rj.pipe, msg)
 
-                if(msg.data.event_name !== undefined && ( typeof msg.data.event_name === "string" || typeof msg.data.event_name === "number" ) )
+                if(rj.msg.event_name !== undefined && ( typeof rj.msg.event_name === "string" || typeof rj.msg.event_name === "number" ) )
                 {
-                    comet_server_signal().send_emit(rj.pipe+"."+msg.data.event_name, msg.data)
+                    comet_server_signal().send_emit(rj.pipe+"."+rj.msg.event_name, msg)
                 }
             }
-            else if(msg.data.event_name !== undefined && ( typeof msg.data.event_name === "string" || typeof msg.data.event_name === "number" ) )
+            else if(rj.msg.event_name !== undefined && ( typeof rj.msg.event_name === "string" || typeof rj.msg.event_name === "number" ) )
             {
                 // Сообщение доставленое по id с указанием event_name
-                comet_server_signal().send_emit("msg."+msg.data.event_name, msg.data)
-                comet_server_signal().send_emit("msg", msg.data)
+                comet_server_signal().send_emit("msg."+rj.msg.event_name, msg)
+                comet_server_signal().send_emit("msg", msg)
             }
             else
             {
                 // Сообщение доставленое по id без указания event_name
-                comet_server_signal().send_emit("msg", msg.data)
+                comet_server_signal().send_emit("msg", msg)
             }
 
-            comet_server_signal().send_emit("comet_server_msg", msg.data);
+            comet_server_signal().send_emit("comet_server_msg", msg);
             return 1;
         }
 
@@ -727,7 +729,7 @@ function CometServer(options)
 
             if(this.socket &&  this.socket.readyState === 1)
             {
-                //console.log("WebSocket-send-msg:"+msg)
+                console.log("WebSocket-send-msg:"+msg)
                 this.socket.send(msg);
                 return true;
             }
@@ -741,20 +743,27 @@ function CometServer(options)
          * Вернёт true в случаи отправки
          * Отчёт о доставке прийдёт в канал _answer
          * @param string pipe_name имя канала, должно начинатся с web_
+         * @param string event_name имя события в канале
          * @param string msg Сообщение
          * @returns boolean
          */
-        this.web_pipe_send = function(pipe_name, msg)
+        this.web_pipe_send = function(pipe_name, event_name, msg)
         {
-            if( typeof msg != "string")
-	    {
-		msg = JSON.stringify(msg)
-	    }
+            if(msg === undefined)
+            {
+                msg = event_name;
+                event_name = "undefined";
+            }
             
-            console.log(["web_pipe_send", pipe_name, msg])
+            if(msg === undefined)
+            {
+                return false;
+            }
+                 
+            console.log(["web_pipe_send", pipe_name, msg]);
             if(this.is_master)
             {
-                return this.send_msg("web_pipe\n"+pipe_name+"\n"+Base64.encode(msg));
+                return this.send_msg("web_pipe\n"+pipe_name+"\n"+Base64.encode(JSON.stringify({'data':msg, event_name:event_name})));
             }
             else
             {
