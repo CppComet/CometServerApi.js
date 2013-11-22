@@ -322,10 +322,10 @@ function CometServer(options)
     console.log(options)
     var CometServerApi = function(opt)
     {
-	this.version = "1.5";
+	this.version = "1.7";
 
 	this.major_version = 1;
-	this.minor_version = 33;
+	this.minor_version = 7;
 
         this.options = opt
         this.arg= "";
@@ -346,6 +346,8 @@ function CometServer(options)
 
         this.start_timer = 1200;
         this.reg_exp = new RegExp(/^([^.]+)\.([^.]+)$/)
+        
+        this.protocol = document.location.protocol.replace(/[^s]/img, "")
 
         /**
          * Добавляет подписки на каналы, события в каналах и отчёты о доставке сообщений в каналы.
@@ -519,11 +521,11 @@ function CometServer(options)
 
             if(window.WebSocket)
             {
-                this.url = 'ws://ws-client'+this.options.dev_id+'.app.comet-server.ru/ws/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
+                this.url = 'ws'+this.protocol+'://app.comet-server.ru/ws/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
             }
             else
             {
-                this.url = '//client'+this.options.dev_id+'.app.comet-server.ru/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
+                this.url = 'http'+this.protocol+'://app.comet-server.ru/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
             }
 
             if(this.options.user_key && this.options.user_key.length > 10)
@@ -996,5 +998,6 @@ function CometServer(options)
 
     return __CometServer;
 }
+
 
 
