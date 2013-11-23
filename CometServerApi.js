@@ -1,7 +1,6 @@
 
 
 
-
 function getCookie(name)
 {
      var cookie = " " + document.cookie;
@@ -23,148 +22,6 @@ function getCookie(name)
      return(setStr);
 }
 
- 
-/**
-*
-*  Base64 encode / decode
-*  http://www.webtoolkit.info/
-*
-**/  
-var Base64 = {
- 
-	// private property
-	_keyStr : "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",
- 
-	// public method for encoding
-	encode : function (input) {
-		var output = "";
-		var chr1, chr2, chr3, enc1, enc2, enc3, enc4;
-		var i = 0;
- 
-		input = Base64._utf8_encode(input);
- 
-		while (i < input.length) {
- 
-			chr1 = input.charCodeAt(i++);
-			chr2 = input.charCodeAt(i++);
-			chr3 = input.charCodeAt(i++);
- 
-			enc1 = chr1 >> 2;
-			enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
-			enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
-			enc4 = chr3 & 63;
- 
-			if (isNaN(chr2)) {
-				enc3 = enc4 = 64;
-			} else if (isNaN(chr3)) {
-				enc4 = 64;
-			}
- 
-			output = output +
-			this._keyStr.charAt(enc1) + this._keyStr.charAt(enc2) +
-			this._keyStr.charAt(enc3) + this._keyStr.charAt(enc4);
- 
-		}
- 
-		return output;
-	},
- 
-	// public method for decoding
-	decode : function (input) {
-		var output = "";
-		var chr1, chr2, chr3;
-		var enc1, enc2, enc3, enc4;
-		var i = 0;
- 
-		input = input.replace(/[^A-Za-z0-9\+\/\=]/g, "");
- 
-		while (i < input.length) {
- 
-			enc1 = this._keyStr.indexOf(input.charAt(i++));
-			enc2 = this._keyStr.indexOf(input.charAt(i++));
-			enc3 = this._keyStr.indexOf(input.charAt(i++));
-			enc4 = this._keyStr.indexOf(input.charAt(i++));
- 
-			chr1 = (enc1 << 2) | (enc2 >> 4);
-			chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
-			chr3 = ((enc3 & 3) << 6) | enc4;
- 
-			output = output + String.fromCharCode(chr1);
- 
-			if (enc3 != 64) {
-				output = output + String.fromCharCode(chr2);
-			}
-			if (enc4 != 64) {
-				output = output + String.fromCharCode(chr3);
-			}
- 
-		}
- 
-		output = Base64._utf8_decode(output);
- 
-		return output;
- 
-	},
- 
-	// private method for UTF-8 encoding
-	_utf8_encode : function (string) {
-		string = string.replace(/\r\n/g,"\n");
-		var utftext = "";
- 
-		for (var n = 0; n < string.length; n++) {
- 
-			var c = string.charCodeAt(n);
- 
-			if (c < 128) {
-				utftext += String.fromCharCode(c);
-			}
-			else if((c > 127) && (c < 2048)) {
-				utftext += String.fromCharCode((c >> 6) | 192);
-				utftext += String.fromCharCode((c & 63) | 128);
-			}
-			else {
-				utftext += String.fromCharCode((c >> 12) | 224);
-				utftext += String.fromCharCode(((c >> 6) & 63) | 128);
-				utftext += String.fromCharCode((c & 63) | 128);
-			}
- 
-		}
- 
-		return utftext;
-	},
- 
-	// private method for UTF-8 decoding
-	_utf8_decode : function (utftext) {
-		var string = "";
-		var i = 0;
-		var c = c1 = c2 = 0;
- 
-		while ( i < utftext.length ) {
- 
-			c = utftext.charCodeAt(i);
- 
-			if (c < 128) {
-				string += String.fromCharCode(c);
-				i++;
-			}
-			else if((c > 191) && (c < 224)) {
-				c2 = utftext.charCodeAt(i+1);
-				string += String.fromCharCode(((c & 31) << 6) | (c2 & 63));
-				i += 2;
-			}
-			else {
-				c2 = utftext.charCodeAt(i+1);
-				c3 = utftext.charCodeAt(i+2);
-				string += String.fromCharCode(((c & 15) << 12) | ((c2 & 63) << 6) | (c3 & 63));
-				i += 3;
-			}
- 
-		}
- 
-		return string;
-	}
- 
-}
 
 function comet_server_signal()
 {
@@ -349,6 +206,121 @@ function CometServer(options)
         
         this.protocol = document.location.protocol.replace(/[^s]/img, "")
 
+
+        /**  
+         *  http://www.webtoolkit.info/ 
+         **/   
+        this.Base64 = { 
+            _keyStr : "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",
+            encode : function (input) {
+                    var output = "";
+                    var chr1, chr2, chr3, enc1, enc2, enc3, enc4;
+                    var i = 0;
+
+                    input = input.replace(/\r\n/g,"\n");
+                    var utftext = "";
+
+                    for (var n = 0; n < input.length; n++)
+                    { 
+                            var c = input.charCodeAt(n); 
+                            if (c < 128) {
+                                    utftext += String.fromCharCode(c);
+                            }
+                            else if((c > 127) && (c < 2048)) {
+                                    utftext += String.fromCharCode((c >> 6) | 192);
+                                    utftext += String.fromCharCode((c & 63) | 128);
+                            }
+                            else {
+                                    utftext += String.fromCharCode((c >> 12) | 224);
+                                    utftext += String.fromCharCode(((c >> 6) & 63) | 128);
+                                    utftext += String.fromCharCode((c & 63) | 128);
+                            } 
+                    }
+
+                    while (i < utftext.length) {
+
+                            chr1 = utftext.charCodeAt(i++);
+                            chr2 = utftext.charCodeAt(i++);
+                            chr3 = utftext.charCodeAt(i++);
+
+                            enc1 = chr1 >> 2;
+                            enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+                            enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
+                            enc4 = chr3 & 63;
+
+                            if (isNaN(chr2)) {
+                                    enc3 = enc4 = 64;
+                            } else if (isNaN(chr3)) {
+                                    enc4 = 64;
+                            } 
+                            output = output +
+                            this._keyStr.charAt(enc1) + this._keyStr.charAt(enc2) +
+                            this._keyStr.charAt(enc3) + this._keyStr.charAt(enc4); 
+                    } 
+                    return output;
+            },
+
+            decode : function (input) {
+                        var output = "";
+                        var chr1, chr2, chr3;
+                        var enc1, enc2, enc3, enc4;
+                        var i = 0;
+
+                        input = input.replace(/[^A-Za-z0-9\+\/\=]/g, "");
+
+                        while (i < input.length) {
+
+                                enc1 = this._keyStr.indexOf(input.charAt(i++));
+                                enc2 = this._keyStr.indexOf(input.charAt(i++));
+                                enc3 = this._keyStr.indexOf(input.charAt(i++));
+                                enc4 = this._keyStr.indexOf(input.charAt(i++));
+
+                                chr1 = (enc1 << 2) | (enc2 >> 4);
+                                chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+                                chr3 = ((enc3 & 3) << 6) | enc4;
+
+                                output = output + String.fromCharCode(chr1);
+
+                                if (enc3 != 64) {
+                                        output = output + String.fromCharCode(chr2);
+                                }
+                                if (enc4 != 64) {
+                                        output = output + String.fromCharCode(chr3);
+                                }
+
+                        }
+
+                        var string = "";
+                        var i = 0;
+                        var c = c1 = c2 = 0;
+
+                        while ( i < output.length ) {
+
+                                c = output.charCodeAt(i);
+
+                                if (c < 128) {
+                                        string += String.fromCharCode(c);
+                                        i++;
+                                }
+                                else if((c > 191) && (c < 224)) {
+                                        c2 = output.charCodeAt(i+1);
+                                        string += String.fromCharCode(((c & 31) << 6) | (c2 & 63));
+                                        i += 2;
+                                }
+                                else {
+                                        c2 = output.charCodeAt(i+1);
+                                        c3 = output.charCodeAt(i+2);
+                                        string += String.fromCharCode(((c & 15) << 12) | ((c2 & 63) << 6) | (c3 & 63));
+                                        i += 3;
+                                }
+
+                        }
+
+                        return string; 
+                }
+        }
+
+
         /**
          * Добавляет подписки на каналы, события в каналах и отчёты о доставке сообщений в каналы.
          * 
@@ -528,23 +500,15 @@ function CometServer(options)
                 this.url = 'http'+this.protocol+'://app.comet-server.ru/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
             }
 
-            if(this.options.user_key && this.options.user_key.length > 10)
+            if(this.options.dev_id > 0)
             {
-                if(this.options.dev_id > 0)
-                {
-                    this.in_abort = false;
-                    this.conect()
-		    return true;
-                }
-                else
-                {
-                    console.warn("Не установлен dev_id")
-                    return false;
-                }
+                this.in_abort = false;
+                this.conect()
+		return true;
             }
             else
             {
-                console.warn("Не установлен user_key")
+                console.warn("Не установлен dev_id")
                 return false;
             }
         }
@@ -681,7 +645,7 @@ function CometServer(options)
                 rj.msg = r[1];
             }
             
-            rj.msg = Base64.decode(rj.msg)
+            rj.msg = this.Base64.decode(rj.msg)
             try{
                 console.log(["msg", rj.msg, "web_id:"+web_id]);
                 var pmsg = JSON.parse(rj.msg)
@@ -765,11 +729,11 @@ function CometServer(options)
             console.log(["web_pipe_send", pipe_name, msg]);
             if(this.is_master)
             {
-                return this.send_msg("web_pipe\n"+pipe_name+"\n"+Base64.encode(JSON.stringify({'data':msg, event_name:event_name})));
+                return this.send_msg("web_pipe\n"+pipe_name+"\n"+this.Base64.encode(JSON.stringify({'data':msg, event_name:event_name})));
             }
             else
             {
-                comet_server_signal().send_emit('comet_msg_slave_send_msg',"web_pipe\n"+pipe_name+"\n"+Base64.encode(msg))
+                comet_server_signal().send_emit('comet_msg_slave_send_msg',"web_pipe\n"+pipe_name+"\n"+this.Base64.encode(msg))
             }
 
         }
@@ -998,6 +962,3 @@ function CometServer(options)
 
     return __CometServer;
 }
-
-
-
