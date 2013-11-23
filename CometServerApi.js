@@ -733,7 +733,7 @@ function CometServer(options)
             }
             else
             {
-                comet_server_signal().send_emit('comet_msg_slave_send_msg',"web_pipe\n"+pipe_name+"\n"+this.Base64.encode(msg))
+                comet_server_signal().send_emit('comet_msg_slave_send_msg',"web_pipe\n"+pipe_name+"\n"+this.Base64.encode(JSON.stringify({'data':msg, event_name:event_name})));
             }
 
         }
@@ -962,3 +962,6 @@ function CometServer(options)
 
     return __CometServer;
 }
+
+
+
