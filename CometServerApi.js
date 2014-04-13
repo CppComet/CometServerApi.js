@@ -176,7 +176,7 @@ if(!comet_server_signal.prototype.init)
 var __CometServer = undefined;
 function CometServer()
 {
-    
+
     if(!__CometServer)
     {
         var CometServerApi = function(opt)
@@ -188,7 +188,7 @@ function CometServer()
 
             this.options = opt
             this.arg= "";
-            this.is_master = false;
+            this.is_master = undefined;
             this.in_conect_to_server = false;
             this.in_try_conect = false;
 
@@ -210,10 +210,10 @@ function CometServer()
 
             this.web_socket_error = 0;
             this.web_socket_error_timeOut = 30000;
-            
+
             this.xhr_error = 0;
             this.xhr_error_timeOut_id = 30000;
- 
+
             this.LogLevel = 0;
 
             /**
@@ -465,7 +465,7 @@ function CometServer()
                 }
                 return 1;
             }
-            
+
             this.UseWebSocket = function(use)
             {
                 if(use === true)
@@ -480,7 +480,7 @@ function CometServer()
                 }
                 return this.use_WebSocket;
             }
-            
+
             this.UseWebSocket(window.WebSocket !== undefined);
 
             this.start = function(opt)
@@ -518,7 +518,7 @@ function CometServer()
                 }
 
                 this.UseWebSocket(window.WebSocket !== undefined);
-                 
+
                 if(this.options.dev_id > 0)
                 {
                     this.in_abort = false;
@@ -728,22 +728,49 @@ function CometServer()
                 return 1;
             }
 
+
+            this.send_msg_queue = [];
             this.send_msg = function(msg)
             {
-                if(!this.UseWebSocket())
+                if(this.LogLevel ) console.log("WebSocket-send_msg:"+msg);
+                if(this.is_master === undefined)
                 {
+                    this.send_msg_queue.push(msg)
                     return false;
                 }
+                else if(this.is_master === false)
+                {
+                    comet_server_signal().send_emit('comet_msg_slave_send_msg',msg);
+                }
+                else if(this.is_master)
+                {
+                    if(!this.UseWebSocket())
+                    {
+                        console.warn("WebSocket-send-msg: not use");
+                        return false;
+                    }
 
-                if(this.socket &&  this.socket.readyState === 1)
-                {
-                    if(this.LogLevel) console.log("WebSocket-send-msg:"+msg)
-                    this.socket.send(msg);
-                    return true;
-                }
-                else
-                {
-                    return false;
+                    if(this.socket &&  this.socket.readyState === 1)
+                    {
+                        if(this.LogLevel ) console.log("WebSocket-send-msg:"+msg);
+
+                        if(this.send_msg_queue.length > 0)
+                        {
+                            for(var i in this.send_msg_queue)
+                            {
+                                this.socket.send(this.send_msg_queue[i]);
+                            }
+                            this.send_msg_queue = []
+                        }
+
+                        this.socket.send(msg);
+                        return true;
+                    }
+                    else
+                    {
+                        this.send_msg_queue.push(msg)
+                        return false;
+                    }
                 }
             }
 
@@ -769,28 +796,13 @@ function CometServer()
                 }
 
                 if(this.LogLevel) console.log(["web_pipe_send", pipe_name, msg]);
-                if(this.is_master)
-                {
-                    return this.send_msg("web_pipe\n"+pipe_name+"\n"+this.Base64.encode(JSON.stringify({'data':msg, event_name:event_name})));
-                }
-                else
-                {
-                    comet_server_signal().send_emit('comet_msg_slave_send_msg',"web_pipe\n"+pipe_name+"\n"+this.Base64.encode(JSON.stringify({'data':msg, event_name:event_name})));
-                }
+                return this.send_msg("web_pipe\n"+pipe_name+"\n"+this.Base64.encode(JSON.stringify({'data':msg, event_name:event_name})));
             }
 
             this.get_pipe_log = function(pipe_name)
-            { 
-
+            {
                 if(this.LogLevel) console.log(["get_pipe_log", pipe_name]);
-                if(this.is_master)
-                {
-                    return this.send_msg("pipe_log\n"+pipe_name);
-                }
-                else
-                {
-                    comet_server_signal().send_emit('comet_msg_slave_send_msg',"pipe_log\n"+pipe_name);
-                }
+                return this.send_msg("pipe_log\n"+pipe_name);
             }
 
 
@@ -879,7 +891,7 @@ function CometServer()
                         if(thisObj.LogLevel) console.log("WS Входящие сообщение:"+event.data);
                         var lineArray = event.data.replace(/^\s+|\s+$/, '').split('\n')
                         for(var i in lineArray)
-                        { 
+                        {
                             var rj = {}
                             try{
                                 rj = JSON.parse(lineArray[i])
@@ -968,11 +980,11 @@ function CometServer()
                                 else if( thisObj.xhr_error > 3 )
                                 {
                                     thisObj.time_to_reconect_on_error = 10000;
-                                }                                
-                                
+                                }
+
                                 if(thisObj.LogLevel || 1) console.log("Ошибка в xhr, переподключение через "+(thisObj.time_to_reconect_on_error) +" секунды.");
                                 setTimeout(function(){ thisObj.conect_to_server() }, thisObj.time_to_reconect_on_error )
-                                
+
                                 setTimeout(function(){ thisObj.xhr_error = 0 }, thisObj.xhr_error_timeOut_id )
                             }
                         }
@@ -1011,13 +1023,28 @@ function CometServer()
 
                  var time_id = false
                  var last_time_id = false
-
+                 
+                 comet_server_signal().connect("slot_comet_msg_set_as_slave",'comet_msg_set_as_slave', function()
+                 {
+                     // Подписка для send_msg: Если мы станем slave вкладкой то все сообщения ожидающие в очереди отправим мастер вкладке.
+                     //comet_server_signal().disconnect("slot_comet_msg_set_as_slave", 'comet_msg_set_as_slave');
+                     if(thisObj.send_msg_queue.length > 0)
+                     {
+                        for(var i in thisObj.send_msg_queue)
+                        {
+                            comet_server_signal().send_emit('comet_msg_slave_send_msg',thisObj.send_msg_queue[i]);
+                        }
+                        thisObj.send_msg_queue = []
+                     }
+                 });
+                 
                  // Подключаемся на уведомления от других вкладок о том что сервер работает, если за this.start_timer милисекунд уведомление произойдёт то отменим поставленый ранее таймер
                  comet_server_signal().connect("comet_msg_conect",'comet_msg_master_signal', function()
                  {
                     if(time_id !== false) //  отменим поставленый ранее таймер если это ещё не сделано
                     {
                         clearTimeout( time_id )
+                        
                         time_id = false;
                         if(thisObj.LogLevel) console.log("Соединение с сервером отменено");
 
@@ -1039,8 +1066,11 @@ function CometServer()
                                callback()
                             }, thisObj.start_timer )
                         })
-
                     }
+                    
+                    if(thisObj.LogLevel) console.log('set is slave')
+                    thisObj.is_master = false; // Укажем что мы явно не мастер вкладка переключив thisObj.is_master из undefined в false
+                    comet_server_signal().emit('comet_msg_set_as_slave', "slave")
                  })
 
                  // Создадим таймер, если этот таймер не будет отменён за this.start_timer милисекунд то считаем себя мастер вкладкой
