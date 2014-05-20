@@ -177,7 +177,7 @@ cometApi = function(opt)
     /**
      * @private
      */
-    this.version = "1.80";
+    this.version = "1.81";
 
     /**
      * @private
@@ -634,6 +634,15 @@ cometApi = function(opt)
         }
         return true;
     }
+    
+    /**
+     * Подписывается на подписки запрошеные ранее.
+     * @private
+     */
+    this.send_curent_subscription = function()
+    {
+        this.send_msg("subscription\n"+this.subscription_array.join("\n"))
+    }
 
     this.UseWebSocket = function(use)
     {
@@ -1048,6 +1057,12 @@ cometApi = function(opt)
         {
             msg = event_name;
             event_name = "undefined";
+            
+            if(/[.]/.test(pipe_name))
+            {
+                event_name = pipe_name.replace(/^[^.]*\.(.*)$/, "$1")
+                pipe_name = pipe_name.replace(/^(.*?)\.(.*)/, "$1")
+            }
         }
 
         if(msg === undefined)
@@ -1101,6 +1116,8 @@ cometApi = function(opt)
             
             this.socket.onopen = function() {
                 if(thisObj.LogLevel) console.log("WS Соединение установлено.");
+                 
+                if(thisObj.send_msg_subscription === false) thisObj.send_curent_subscription(); // Подписываемся на то что были подписаны до разрыва соединения
                 
                 // Отправка сообщений из очереди.
                 thisObj.send_msg_from_queue();
