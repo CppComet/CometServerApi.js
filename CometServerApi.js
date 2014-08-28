@@ -139,16 +139,19 @@ if(!comet_server_signal.prototype.init)
     {
         window.addEventListener('storage', function(e)
         {
-            try{
-                var data = JSON.parse(e.newValue);
-                if(data !== undefined && data.name !== undefined  )
-                {
-                    if(this.debug > 1) console.log( data )
-                    comet_server_signal().emit( data.name, data.param )
-                }
-            }
-            catch (failed)
+            if(e.key && e.key == 'comet_server_signal_storage_emit')
             {
+                try{
+                    var data = JSON.parse(e.newValue);
+                    if(data !== undefined && data.name !== undefined  )
+                    {
+                        if(this.debug > 1) console.log( data )
+                        comet_server_signal().emit( data.name, data.param )
+                    }
+                }
+                catch (failed)
+                {
+                }
             }
         }, false);
     }
@@ -156,16 +159,19 @@ if(!comet_server_signal.prototype.init)
     {
         document.attachEvent('onstorage', function(e)
         {
-            try{
-                var data = JSON.parse(e.newValue);
-                if(data !== undefined && data.name !== undefined  )
-                {
-                    if(this.debug > 1) console.log( data )
-                    comet_server_signal().emit( data.name, data.param )
-                }
-            }
-            catch (failed)
+            if(e.key && e.key == 'comet_server_signal_storage_emit')
             {
+                try{
+                    var data = JSON.parse(e.newValue);
+                    if(data !== undefined && data.name !== undefined  )
+                    {
+                        if(this.debug > 1) console.log( data )
+                        comet_server_signal().emit( data.name, data.param )
+                    }
+                }
+                catch (failed)
+                {
+                }
             }
         } );
     }
@@ -256,14 +262,14 @@ cometApi = function(opt)
      * @private
      */
     this.web_socket_error = 0;
-    
+
     /**
      * Учитывает удачно переданные сообщения по вебскокету
      * Если они были то в случаии неполадок с ссетью переход на long poling осуществлён не будет.
      * @private
      */
     this.web_socket_success = false;
-    
+
     /**
      * @private
      */
@@ -510,7 +516,7 @@ cometApi = function(opt)
                 });
             }
         }
-        
+
         if(callback === undefined)
         {
             callback = function(){};
@@ -606,8 +612,8 @@ cometApi = function(opt)
         }
 
         this.subscription_array[this.subscription_array.length] = name;
- 
-        
+
+
         if(this.is_master === undefined)
         {
             // Статус ещё не определён
@@ -628,13 +634,13 @@ cometApi = function(opt)
             }
         }
         else
-        {   
+        {
             // Мы slave вкладка
             comet_server_signal().send_emit('comet_msg_slave_add_subscription_and_restart',this.subscription_array.join("\n"))
         }
         return true;
     }
-    
+
     /**
      * Подписывается на подписки запрошеные ранее.
      * @private
@@ -766,7 +772,7 @@ cometApi = function(opt)
                     thisObj.request.abort();
                 }
             }
-            
+
             // Таймер задержки рестарта чтоб не выполнять рестарт чаще раза в секунду.
             this.restart_time_id = setTimeout(function()
             {
@@ -894,7 +900,7 @@ cometApi = function(opt)
 
         if(msg.pipe !== undefined)
         {
-            // Если свойство pipe определено то это сообщение из канала. 
+            // Если свойство pipe определено то это сообщение из канала.
             comet_server_signal().send_emit(msg.pipe, result_msg)
 
             if(msg.data.event_name !== undefined && ( typeof msg.data.event_name === "string" || typeof msg.data.event_name === "number" ) )
@@ -970,7 +976,7 @@ cometApi = function(opt)
                     for(var i in this.send_msg_queue)
                     {
                         if(this.LogLevel ) console.log("WebSocket-send-msg:"+this.send_msg_queue[i]);
-                        
+
                         // Потом убрать setTimeout
                         setTimeout( function(ri){thisObj.socket.send(ri); }, 10, this.send_msg_queue[i])
                     }
@@ -987,11 +993,11 @@ cometApi = function(opt)
      * @private
      */
     this.add_msg_to_queue = function(msg)
-    { 
+    {
         var MsgType = false;
         MsgType = msg.split("\n")
         MsgType = MsgType[0]
-         
+
         if(MsgType == "subscription")
         {
             // Проверка если сообщение о подписке на канал то его отправлячть вне очереди
@@ -1057,7 +1063,7 @@ cometApi = function(opt)
         {
             msg = event_name;
             event_name = "undefined";
-            
+
             if(/[.]/.test(pipe_name))
             {
                 event_name = pipe_name.replace(/^[^.]*\.(.*)$/, "$1")
@@ -1077,7 +1083,7 @@ cometApi = function(opt)
     /**
      * Отправляет запрос на получение истории по каналу pipe_name
      * @param {string} pipe_name
-     * @returns {Boolean} 
+     * @returns {Boolean}
      */
     this.get_pipe_log = function(pipe_name)
     {
@@ -1085,7 +1091,7 @@ cometApi = function(opt)
         {
             return false;
         }
-        
+
         this.send_msg("pipe_log\n"+pipe_name+"\n"+this.custom_id+"\n");
         return true;
     }
@@ -1113,12 +1119,12 @@ cometApi = function(opt)
         if(this.UseWebSocket())
         {
             this.socket = new WebSocket(this.url);
-            
+
             this.socket.onopen = function() {
                 if(thisObj.LogLevel) console.log("WS Соединение установлено.");
-                 
+
                 if(thisObj.send_msg_subscription === false) thisObj.send_curent_subscription(); // Подписываемся на то что были подписаны до разрыва соединения
-                
+
                 // Отправка сообщений из очереди.
                 thisObj.send_msg_from_queue();
             };
@@ -1210,7 +1216,7 @@ cometApi = function(opt)
             }
 
             this.request.onreadystatechange = function()
-            { 
+            {
                 if( thisObj.request.status === 200 && thisObj.in_abort !== true)
                 {
                     var re = thisObj.request.responseText;
@@ -1218,7 +1224,7 @@ cometApi = function(opt)
                     if(thisObj.LogLevel) console.log("Входящие сообщение:"+re);
                     var lineArray = re.replace(/^\s+|\s+$/, '').split('\n')
                     for(var i in lineArray)
-                    { 
+                    {
                         try{
                             if(thisObj.LogLevel) console.log(lineArray[i]);
                             var rj = JSON.parse(lineArray[i])
@@ -1307,7 +1313,7 @@ cometApi = function(opt)
          {
              // Подписка для send_msg: Если мы станем slave вкладкой то все сообщения ожидающие в очереди отправим мастер вкладке.
              //comet_server_signal().disconnect("slot_comet_msg_set_as_slave", 'comet_msg_set_as_slave');
-             
+
              console.log('comet_msg_set_as_slave: set is slave');
              thisObj.send_msg_from_queue();
          });
@@ -1375,4 +1381,3 @@ function CometServer()
 
     return __CometServer;
 }
- 
