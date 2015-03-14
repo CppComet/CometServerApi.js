@@ -141,7 +141,7 @@ if(!comet_server_signal.prototype.init)
         window.addEventListener('storage', function(e)
         {
             if(e.key && e.key == 'comet_server_signal_storage_emit')
-            {// !testThis
+            {
                 try{
                     var data = JSON.parse(e.newValue);
                     if(data !== undefined && data.name !== undefined  )
@@ -161,7 +161,7 @@ if(!comet_server_signal.prototype.init)
         document.attachEvent('onstorage', function(e)
         {
             if(e.key && e.key == 'comet_server_signal_storage_emit')
-            {// !testThis
+            {
                 try{
                     var data = JSON.parse(e.newValue);
                     if(data !== undefined && data.name !== undefined  )
