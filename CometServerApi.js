@@ -25,111 +25,112 @@ function getCookie(name)
 
 function comet_server_signal()
 {
-    if(!this.custom_id)
+    if(this.init === undefined) this.init = false;
+    return comet_server_signal;
+}
+  
+comet_server_signal.slotArray = new Array();
+comet_server_signal.debug = false;
+
+/**
+ * Подписывает слот на сигнал
+ *
+ * Если передать два параметра то они обработаются как  connect( signal_name, slot_function )
+ * Если передать три параметра то они обработаются как  connect( slot_name, signal_name, slot_function )
+ *
+ * @param slot_name Имя слота
+ * @param signal_name Имя сигнала
+ * @param slot_function Функция вызваемая при вызове слота, должна иметь следующию сигнатуру function(param, signal_name){}
+ *
+ * <code>
+ * Пример использования
+ * new new signal().emit("catalogControl.OpenObject",{})
+ *
+ * </code>
+ */
+comet_server_signal.connect = function(slot_name, signal_name, slot_function)
+{
+    if(slot_function === undefined)
     {
-        this.custom_id = Math.random()+"_"+Math.random()+"_"+Math.random()+"_"+Math.random()
-        this.slotArray = new Array()
-        this.debug = false
+        slot_function = signal_name;
+        signal_name = slot_name;
+        slot_name = Math.random()+""+Math.random()
     }
 
-    if(this.init === undefined) this.init = false
-
-    /**
-     * Подписывает слот на сигнал
-     *
-     * Если передать два параметра то они обработаются как  connect( signal_name, slot_function )
-     * Если передать три параметра то они обработаются как  connect( slot_name, signal_name, slot_function )
-     *
-     * @param slot_name Имя слота
-     * @param signal_name Имя сигнала
-     * @param slot_function Функция вызваемая при вызове слота, должна иметь следующию сигнатуру function(param, signal_name){}
-     *
-     * <code>
-     * Пример использования
-     * new new signal().emit("catalogControl.OpenObject",{})
-     *
-     * </code>
-     */
-    this.connect = function(slot_name, signal_name, slot_function)
+    if (comet_server_signal.slotArray[signal_name] === undefined)
     {
-        if(slot_function === undefined)
-        {
-            slot_function = signal_name;
-            signal_name = slot_name;
-            slot_name = Math.random()+""+Math.random()
-        }
-
-        if (this.slotArray[signal_name] === undefined)
-        {
-            this.slotArray[signal_name] = new Array()
-        }
-        this.slotArray[signal_name][slot_name] = slot_function;
-        if(this.debug) console.log("На прослушивание сигнала " + signal_name + " добавлен слот " + slot_name + "")
-        return slot_name;
+        comet_server_signal.slotArray[signal_name] = new Array()
     }
-
-
-    /**
-     * Отписывает слот slot_name от сигнала signal_name
-     */
-    this.disconnect = function(slot_name, signal_name)
-    {
-        if (this.slotArray[signal_name] === undefined)
-        {
-            this.slotArray[signal_name] = new Array()
-        }
-
-        if (this.slotArray[signal_name][slot_name] !== undefined)
-        {
-            delete this.slotArray[signal_name][slot_name]
-        }
-    }
-
-    /**
-     * Вызывает слоты подписаные на сигнал signal_name и каждому из них передаёт аруметы signal_name - имя вызвавшего сигнала, и param - объект с параметрами для слота)
-     * В добавок ретранслирует сигнал в дочернии iframe если они есть и в родительское окно если оно есть
-     * @param signal_name Имя сигнала
-     * @param param Параметры переданые слоту при вызове в втором аргументе
-     */
-    this.emit = function(signal_name, param)
-    {
-        if (this.slotArray[signal_name] === undefined)
-        {
-            if(this.debug) console.log("На сигнал " + signal_name + " нет подписчиков")
-        }
-        else
-        {
-            if(this.debug) console.log("Сигнал " + signal_name + " подписаны слоты")
-            for (var slot in this.slotArray[signal_name])
-            {
-                this.slotArray[signal_name][slot](param,signal_name)
-            }
-
-        }
-    }
-
-    /*
-     *  генерация события будут оповещены и соседние вкладки
-     *  @eName string - имя события
-     *  использование .emit('любое название события', [ Параметры события ])
-     */
-    this.send_emit = function (signal_name, param)
-    {
-        this.emit(signal_name, param)
-
-        if(window['localStorage'] !==undefined  )
-        {
-            var curent_custom_id = Math.random()+"_"+Math.random()+"_"+Math.random()+"_"+Math.random()+"_"+Math.random()
-
-            last_custom_id = curent_custom_id.replace(/0\./img,"")
-            window['localStorage']['comet_server_signal_storage_emit']= JSON.stringify({name:signal_name, custom_id:curent_custom_id, param:param});
-        }
-    }
-
-
- return this;
+    comet_server_signal.slotArray[signal_name][slot_name] = slot_function;
+    if(comet_server_signal.debug) console.log("На прослушивание сигнала " + signal_name + " добавлен слот " + slot_name + "")
+    return slot_name;
 }
 
+
+/**
+ * Отписывает слот slot_name от сигнала signal_name
+ */
+comet_server_signal.disconnect = function(slot_name, signal_name)
+{
+    if (comet_server_signal.slotArray[signal_name] === undefined)
+    {
+        comet_server_signal.slotArray[signal_name] = new Array()
+    }
+
+    if (comet_server_signal.slotArray[signal_name][slot_name] !== undefined)
+    {
+        delete comet_server_signal.slotArray[signal_name][slot_name]
+    }
+}
+
+/**
+ * Вызывает слоты подписаные на сигнал signal_name и каждому из них передаёт аруметы signal_name - имя вызвавшего сигнала, и param - объект с параметрами для слота)
+ * В добавок ретранслирует сигнал в дочернии iframe если они есть и в родительское окно если оно есть
+ * @param signal_name Имя сигнала
+ * @param param Параметры переданые слоту при вызове в втором аргументе
+ */
+comet_server_signal.emit = function(signal_name, param, SignalNotFromThisTab)
+{ 
+    if (comet_server_signal.slotArray[signal_name] === undefined)
+    {
+        if(comet_server_signal.debug) console.log("На сигнал " + signal_name + " нет подписчиков")
+    }
+    else
+    {
+        if(comet_server_signal.debug) console.log("Сигнал " + signal_name + " подписаны слоты")
+        for (var slot in comet_server_signal.slotArray[signal_name])
+        {
+            comet_server_signal.slotArray[signal_name][slot](param,signal_name, SignalNotFromThisTab === true)
+        }
+
+    }
+}
+
+/*
+ *  генерация события будут оповещены и соседние вкладки
+ *  @eName string - имя события
+ *  использование .emit('любое название события', [ Параметры события ])
+ */
+comet_server_signal.emitAll = function (signal_name, param)
+{
+    comet_server_signal.emit(signal_name, param)
+
+    if(window['localStorage'] !==undefined  )
+    {
+        var curent_custom_id = Math.random()+"_"+Math.random()+"_"+Math.random()+"_"+Math.random()+"_"+Math.random()
+        window['localStorage']['comet_server_signal_storage_emit']= JSON.stringify({name:signal_name, custom_id:curent_custom_id, param:param});
+    }
+}
+
+
+/**
+ * Для совместимости с прошлой версией.
+ * 
+ * Библиотека TabSignal.js (https://github.com/Levhav/TabSignal.js) полностью реализована
+ * объектом comet_server_signal так как является составной частью JavaScript CometServerApi
+ */
+tabSignal = comet_server_signal;
+comet_server_signal.send_emit = comet_server_signal.emitAll; // Для совместимости с прошлой версией.
 
 
 if(!comet_server_signal.prototype.init)
@@ -140,13 +141,13 @@ if(!comet_server_signal.prototype.init)
         window.addEventListener('storage', function(e)
         {
             if(e.key && e.key == 'comet_server_signal_storage_emit')
-            {
+            {// !testThis
                 try{
                     var data = JSON.parse(e.newValue);
                     if(data !== undefined && data.name !== undefined  )
                     {
-                        if(this.debug > 1) console.log( data )
-                        comet_server_signal().emit( data.name, data.param )
+                        if(comet_server_signal.debug > 1) console.log( data )
+                        comet_server_signal().emit( data.name, data.param, true )
                     }
                 }
                 catch (failed)
@@ -160,13 +161,13 @@ if(!comet_server_signal.prototype.init)
         document.attachEvent('onstorage', function(e)
         {
             if(e.key && e.key == 'comet_server_signal_storage_emit')
-            {
+            {// !testThis
                 try{
                     var data = JSON.parse(e.newValue);
                     if(data !== undefined && data.name !== undefined  )
                     {
-                        if(this.debug > 1) console.log( data )
-                        comet_server_signal().emit( data.name, data.param )
+                        if(comet_server_signal.debug > 1) console.log( data )
+                        comet_server_signal().emit( data.name, data.param, true )
                     }
                 }
                 catch (failed)
@@ -183,7 +184,7 @@ cometApi = function(opt)
     /**
      * @private
      */
-    this.version = "1.81";
+    this.version = "1.90";
 
     /**
      * @private
@@ -262,14 +263,14 @@ cometApi = function(opt)
      * @private
      */
     this.web_socket_error = 0;
-
+    
     /**
      * Учитывает удачно переданные сообщения по вебскокету
      * Если они были то в случаии неполадок с ссетью переход на long poling осуществлён не будет.
      * @private
      */
     this.web_socket_success = false;
-
+    
     /**
      * @private
      */
@@ -516,7 +517,7 @@ cometApi = function(opt)
                 });
             }
         }
-
+        
         if(callback === undefined)
         {
             callback = function(){};
@@ -559,7 +560,7 @@ cometApi = function(opt)
         else if(/^#/.test(name))
         {
             // Подписка на отчёт о доставке
-            name = name.replace(/^#/, "answer_to_");
+            name = name.replace("#", "_answer_to_");
             comet_server_signal().connect(name,  function(param){
                     if(param.server_info.history === true && param.server_info.marker !== thisObj.custom_id)
                     {
@@ -612,8 +613,8 @@ cometApi = function(opt)
         }
 
         this.subscription_array[this.subscription_array.length] = name;
-
-
+ 
+        
         if(this.is_master === undefined)
         {
             // Статус ещё не определён
@@ -634,11 +635,16 @@ cometApi = function(opt)
             }
         }
         else
-        {
+        {   
             // Мы slave вкладка
             comet_server_signal().send_emit('comet_msg_slave_add_subscription_and_restart',this.subscription_array.join("\n"))
         }
         return true;
+    }
+    
+    this.isMaster = function()
+    {
+        return this.is_master;
     }
 
     /**
@@ -772,7 +778,7 @@ cometApi = function(opt)
                     thisObj.request.abort();
                 }
             }
-
+            
             // Таймер задержки рестарта чтоб не выполнять рестарт чаще раза в секунду.
             this.restart_time_id = setTimeout(function()
             {
@@ -879,7 +885,7 @@ cometApi = function(opt)
         {
             // Проверка не пришлоли вместе с данными информации о отправителе.
             var r = msg.data.split(";")
-            web_id = r[0].replace("A::", "");
+            web_id = r[0].replace("A::", "")/1;
             msg.data = r[1];
         }
 
@@ -900,7 +906,7 @@ cometApi = function(opt)
 
         if(msg.pipe !== undefined)
         {
-            // Если свойство pipe определено то это сообщение из канала.
+            // Если свойство pipe определено то это сообщение из канала. 
             comet_server_signal().send_emit(msg.pipe, result_msg)
 
             if(msg.data.event_name !== undefined && ( typeof msg.data.event_name === "string" || typeof msg.data.event_name === "number" ) )
@@ -976,7 +982,7 @@ cometApi = function(opt)
                     for(var i in this.send_msg_queue)
                     {
                         if(this.LogLevel ) console.log("WebSocket-send-msg:"+this.send_msg_queue[i]);
-
+                        
                         // Потом убрать setTimeout
                         setTimeout( function(ri){thisObj.socket.send(ri); }, 10, this.send_msg_queue[i])
                     }
@@ -993,11 +999,11 @@ cometApi = function(opt)
      * @private
      */
     this.add_msg_to_queue = function(msg)
-    {
+    { 
         var MsgType = false;
         MsgType = msg.split("\n")
         MsgType = MsgType[0]
-
+         
         if(MsgType == "subscription")
         {
             // Проверка если сообщение о подписке на канал то его отправлячть вне очереди
@@ -1063,7 +1069,7 @@ cometApi = function(opt)
         {
             msg = event_name;
             event_name = "undefined";
-
+            
             if(/[.]/.test(pipe_name))
             {
                 event_name = pipe_name.replace(/^[^.]*\.(.*)$/, "$1")
@@ -1083,7 +1089,7 @@ cometApi = function(opt)
     /**
      * Отправляет запрос на получение истории по каналу pipe_name
      * @param {string} pipe_name
-     * @returns {Boolean}
+     * @returns {Boolean} 
      */
     this.get_pipe_log = function(pipe_name)
     {
@@ -1091,7 +1097,7 @@ cometApi = function(opt)
         {
             return false;
         }
-
+        
         this.send_msg("pipe_log\n"+pipe_name+"\n"+this.custom_id+"\n");
         return true;
     }
@@ -1119,12 +1125,12 @@ cometApi = function(opt)
         if(this.UseWebSocket())
         {
             this.socket = new WebSocket(this.url);
-
+            
             this.socket.onopen = function() {
                 if(thisObj.LogLevel) console.log("WS Соединение установлено.");
-
+                 
                 if(thisObj.send_msg_subscription === false) thisObj.send_curent_subscription(); // Подписываемся на то что были подписаны до разрыва соединения
-
+                
                 // Отправка сообщений из очереди.
                 thisObj.send_msg_from_queue();
             };
@@ -1216,7 +1222,7 @@ cometApi = function(opt)
             }
 
             this.request.onreadystatechange = function()
-            {
+            { 
                 if( thisObj.request.status === 200 && thisObj.in_abort !== true)
                 {
                     var re = thisObj.request.responseText;
@@ -1224,7 +1230,7 @@ cometApi = function(opt)
                     if(thisObj.LogLevel) console.log("Входящие сообщение:"+re);
                     var lineArray = re.replace(/^\s+|\s+$/, '').split('\n')
                     for(var i in lineArray)
-                    {
+                    { 
                         try{
                             if(thisObj.LogLevel) console.log(lineArray[i]);
                             var rj = JSON.parse(lineArray[i])
@@ -1313,7 +1319,7 @@ cometApi = function(opt)
          {
              // Подписка для send_msg: Если мы станем slave вкладкой то все сообщения ожидающие в очереди отправим мастер вкладке.
              //comet_server_signal().disconnect("slot_comet_msg_set_as_slave", 'comet_msg_set_as_slave');
-
+             
              console.log('comet_msg_set_as_slave: set is slave');
              thisObj.send_msg_from_queue();
          });
