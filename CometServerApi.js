@@ -141,7 +141,7 @@ if(!comet_server_signal.prototype.init)
         window.addEventListener('storage', function(e)
         {
             if(e.key && e.key == 'comet_server_signal_storage_emit')
-            {
+            {// !testThis
                 try{
                     var data = JSON.parse(e.newValue);
                     if(data !== undefined && data.name !== undefined  )
@@ -161,7 +161,7 @@ if(!comet_server_signal.prototype.init)
         document.attachEvent('onstorage', function(e)
         {
             if(e.key && e.key == 'comet_server_signal_storage_emit')
-            {
+            {// !testThis
                 try{
                     var data = JSON.parse(e.newValue);
                     if(data !== undefined && data.name !== undefined  )
@@ -184,7 +184,7 @@ cometApi = function(opt)
     /**
      * @private
      */
-    this.version = "1.90";
+    this.version = "2.0";
 
     /**
      * @private
@@ -889,7 +889,10 @@ cometApi = function(opt)
             msg.data = r[1];
         }
 
-        msg.data = this.Base64.decode(msg.data)
+        if(msg.event_name === undefined)
+        { 
+            msg.data = this.Base64.decode(msg.data)
+        }
         try{
             if(this.LogLevel) console.log(["msg", msg.data, "web_id:"+web_id]);
             var pmsg = JSON.parse(msg.data)
@@ -901,23 +904,33 @@ cometApi = function(opt)
         }
         catch (failed){  }
 
-        var result_msg = {"data": msg.data.data, "server_info":{"user_id":web_id, pipe:msg.pipe, event:msg.data.event_name, history:msg.history === true, marker:msg.marker }}
-        if(this.LogLevel) console.log(["msg", msg, result_msg]);
+        var UserData = msg.data;
+        var event_name = msg.event_name;
+        
+        if(msg.event_name === undefined)
+        { 
+            UserData = msg.data.data
+            event_name = msg.data.event_name
+        }
+        
+        var result_msg = {"data": UserData, "server_info":{"user_id":web_id, pipe:msg.pipe, event:event_name, history:msg.history === true, marker:msg.marker }} 
 
+        if(this.LogLevel) console.log(["msg", msg, result_msg]);
+        
         if(msg.pipe !== undefined)
         {
             // Если свойство pipe определено то это сообщение из канала. 
             comet_server_signal().send_emit(msg.pipe, result_msg)
 
-            if(msg.data.event_name !== undefined && ( typeof msg.data.event_name === "string" || typeof msg.data.event_name === "number" ) )
+            if(event_name !== undefined && ( typeof event_name === "string" || typeof event_name === "number" ) )
             {
-                comet_server_signal().send_emit(msg.pipe+"."+msg.data.event_name, result_msg)
+                comet_server_signal().send_emit(msg.pipe+"."+event_name, result_msg)
             }
         }
-        else if(msg.data.event_name !== undefined && ( typeof msg.data.event_name === "string" || typeof msg.data.event_name === "number" ) )
+        else if(event_name !== undefined && ( typeof event_name === "string" || typeof event_name === "number" ) )
         {
             // Сообщение доставленое по id с указанием event_name
-            comet_server_signal().send_emit("msg."+msg.data.event_name, result_msg)
+            comet_server_signal().send_emit("msg."+event_name, result_msg)
             comet_server_signal().send_emit("msg", result_msg)
         }
         else
