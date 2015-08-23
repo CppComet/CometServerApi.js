@@ -184,7 +184,7 @@ cometApi = function(opt)
     /**
      * @private
      */
-    this.version = "2.0";
+    this.version = "2.1";
 
     /**
      * @private
@@ -347,6 +347,11 @@ cometApi = function(opt)
         window['localStorage']['comet_LogLevel'] = level;
     }
 
+    this.getCustomString = function()
+    {
+        var custom = (Math.random()*10)+""+Math.random();
+        return custom.replace(/[^0-9A-z]/,"").replace(/^(.{10}).*$/,"$1"); 
+    }
 
     /**
      *  http://www.webtoolkit.info/
@@ -461,6 +466,52 @@ cometApi = function(opt)
             }
     }
 
+    /** 
+     * Выполняет привязку callBack функции к событию.
+     * И при происшествии события на которое мы подписывались в функции subscription
+     * определяет надо ли дёргать callBack функцию так как если событие адресовано
+     * другой вкладке то дёргать не надо.
+     * 
+     * @private
+     * @param string name Имя канала
+     * @param function callBack
+     * @param string specialMarker Если передать не undefined то после прихода 
+     * события произойдёт отписка и кол бек будет навешан только на конкретно наш ответ.
+     */
+    this.subscription_callBack = function(name, callBack, specialMarker)
+    {
+        var thisObj = this;
+        
+        if(specialMarker === undefined)
+        {
+            // Подписка на сообщения от сервера для нашей вкладки
+            comet_server_signal().connect(name,  function(param)
+            {
+                if(param.server_info.marker !== thisObj.custom_id && param.server_info.marker !== undefined)
+                {
+                   // Данное сообщение преднозначено не этой вкладке.
+                   return 0;
+                }
+                callBack(param);
+            });
+        }
+        else
+        { 
+            // Подписка на сообщения от сервера доставленые специально и единоразово для переданного callBack
+            comet_server_signal().connect(specialMarker, name,  function(param)
+            {
+                if(param.server_info.marker !== specialMarker)
+                {
+                   // Данное сообщение преднозначено не этой вкладке.
+                   return 0;
+                }
+                
+                comet_server_signal().disconnect(specialMarker, name);
+                callBack(param);
+            });
+        }
+        return true;
+    }
 
     /**
      * Добавляет подписки на каналы, события в каналах и отчёты о доставке сообщений в каналы.
@@ -504,22 +555,17 @@ cometApi = function(opt)
         var nameArray = name.split("\n");
         if(nameArray.length > 1)
         {
+            // Подписка на массив каналов без передачи колбека имеет смысл в том случаии когда это происходит по инициативе из другой вкладки. 
             for(var i in nameArray)
             {
-                this.subscription(nameArray[i], function(param){
-                    console.error(param)
-                    if(param.server_info.history === true && param.server_info.marker !== thisObj.custom_id)
-                    {
-                       // Данное сообщение из истории но преднозначено не этой вкладке.
-                       return 0;
-                    }
-                    callback(param);
-                });
+                this.subscription(nameArray[i], callback);
             }
+            return;
         }
         
         if(callback === undefined)
         {
+            // Подписка на канал без передачи колбека имеет смысл в том случаии когда это происходит по инициативе из другой вкладки. 
             callback = function(){};
         }
 
@@ -532,43 +578,22 @@ cometApi = function(opt)
 
         if( name === "msg" || /^msg\./.test(name) )
         {
-            // Подписка на сообщения от сервера доставленые в соответсвии с данными авторизации (тоесть по id пользователя)
-            comet_server_signal().connect(name,  function(param){
-                    if(param.server_info.history === true && param.server_info.marker !== thisObj.custom_id)
-                    {
-                       // Данное сообщение из истории но преднозначено не этой вкладке.
-                       return 0;
-                    }
-                    callback(param);
-                });
+            // Подписка на сообщения от сервера доставленые в соответсвии с данными авторизации (тоесть по id пользователя) 
+            thisObj.subscription_callBack(name, callback); 
             return true;
         }
 
         if(/^answer_to_web_/.test(name))
         {
             // Подписка на отчёт о доставке
-            comet_server_signal().connect(name,  function(param){
-                    if(param.server_info.history === true && param.server_info.marker !== thisObj.custom_id)
-                    {
-                       // Данное сообщение из истории но преднозначено не этой вкладке.
-                       return 0;
-                    }
-                    callback(param);
-                });
+            thisObj.subscription_callBack(name, callback); 
             return true;
         }
         else if(/^#/.test(name))
         {
             // Подписка на отчёт о доставке
             name = name.replace("#", "_answer_to_");
-            comet_server_signal().connect(name,  function(param){
-                    if(param.server_info.history === true && param.server_info.marker !== thisObj.custom_id)
-                    {
-                       // Данное сообщение из истории но преднозначено не этой вкладке.
-                       return 0;
-                    }
-                    callback(param);
-                });
+            thisObj.subscription_callBack(name, callback); 
             return true;
         }
 
@@ -583,14 +608,7 @@ cometApi = function(opt)
             return false;
         }
 
-        comet_server_signal().connect(name,  function(param){
-                    if(param.server_info.history === true && param.server_info.marker !== thisObj.custom_id)
-                    {
-                       // Данное сообщение из истории но преднозначено не этой вкладке.
-                       return 0;
-                    }
-                    callback(param);
-                });
+        thisObj.subscription_callBack(name, callback); 
 
         if( name === "comet_server_msg" )
         {
@@ -1102,19 +1120,45 @@ cometApi = function(opt)
     /**
      * Отправляет запрос на получение истории по каналу pipe_name
      * @param {string} pipe_name
+     * @param {function} callBack колбек для ответа от сервера
      * @returns {Boolean} 
      */
-    this.get_pipe_log = function(pipe_name)
+    this.get_pipe_log = function(pipe_name, callBack)
     {
         if(!this.UseWebSocket())
         {
             return false;
         }
         
-        this.send_msg("pipe_log\n"+pipe_name+"\n"+this.custom_id+"\n");
+        var marker = this.custom_id;
+        if(callBack !== undefined)
+        {
+            marker = this.getCustomString();
+            this.subscription(pipe_name)
+            this.subscription_callBack(pipe_name, callBack, marker);
+        }
+        
+        this.send_msg("pipe_log\n"+pipe_name+"\n"+marker+"\n");
         return true;
     }
 
+    /**
+     * Отправляет запрос на получение истории по каналу pipe_name
+     * @param {string} pipe_name
+     * @param {function} callBack колбек для ответа от сервера
+     * @returns {Boolean} 
+     */
+    this.count_users_in_pipe = function(pipe_name, callBack)
+    {
+        if(!this.UseWebSocket())
+        {
+            return false;
+        }
+        var marker = this.getCustomString();
+        this.subscription_callBack("_answer_pipe_count", callBack, marker);
+        this.send_msg("pipe_count\n"+pipe_name+"\n"+marker+"\n"); 
+        return true;
+    }
 
     /**
      * Обеспечивает работу с ссоединением с сервером
