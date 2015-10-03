@@ -1190,6 +1190,12 @@ cometApi = function(opt)
                 
                 // Отправка сообщений из очереди.
                 thisObj.send_msg_from_queue();
+                
+                if(!thisObj.options.nostat)
+                { 
+                    // Отправка данных по использованию сервиса
+                    thisObj.socket.send("statistics\n"+JSON.stringify({url:window.location.href, dev_id:thisObj.options.dev_id}));
+                }
             };
 
             this.socket.onclose = function(event)
