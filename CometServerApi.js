@@ -187,12 +187,12 @@ cometApi = function(opt)
     /**
      * @private
      */
-    this.version = "2.2";
+    this.version = "2.3";
 
     /**
      * @private
      */
-    this.nodeName = "app";
+    this.nodeName = "app.comet-server.ru";
     
     /**
      * @private
@@ -696,10 +696,10 @@ cometApi = function(opt)
     {
         if(this.UseWebSocket() === true)
         {
-            return 'ws'+this.protocol+'://'+this.nodeName+'.comet-server.ru/ws/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
+            return 'ws'+this.protocol+'://'+this.nodeName+'/ws/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
         }
 
-        return 'http'+this.protocol+'://'+this.nodeName+'.comet-server.ru/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
+        return 'http'+this.protocol+'://'+this.nodeName+'/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
     }
 
     this.UseWebSocket = function(use)
@@ -909,6 +909,12 @@ cometApi = function(opt)
     }
 
     /**
+     * Если true то произошла критическая ошибка после которой нет смысла подключатся к серверу
+     * @private
+     */
+    this.hasCriticalError = false;
+    
+    /**
      * Обрабатывает распарсеное входящее сообщение
      *
      * Формат сообщения:{msg:"", pipe:"", eror:""}
@@ -921,6 +927,14 @@ cometApi = function(opt)
         {
             return -1;
         }
+        
+        if(msg.error > 400)
+        {
+            // Критическая ошибка, подключение невозможно. http://comet-server.ru/wiki/doku.php/comet:javascript_api:error
+            console.error("CometServerError:"+msg.error, "\n", msg.data, "\n", "Критическая ошибка, подключение невозможно. Подробности в документации http://comet-server.ru/wiki/doku.php/comet:javascript_api:error" )
+            this.hasCriticalError = true;
+        }
+
 
         if(msg.authorized !== undefined)
         {
@@ -952,7 +966,7 @@ cometApi = function(opt)
             }
         }
         catch (failed){  }
-
+        
         var UserData = msg.data;
         var event_name = msg.event_name;
         
@@ -1218,6 +1232,11 @@ cometApi = function(opt)
         this.in_conect_to_server = true;
         if(!this.is_master) this.setAsMaster();
 
+        if(this.hasCriticalError)
+        {
+            // Если true то произошла критическая ошибка после которой нет смысла подключатся к серверу
+            return false;
+        }
 
         if(this.UseWebSocket())
         {
