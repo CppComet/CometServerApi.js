@@ -32,6 +32,8 @@ function comet_server_signal()
 comet_server_signal.slotArray = new Array();
 comet_server_signal.debug = false;
 
+comet_server_signal.sigId = 0;
+
 /**
  * Подписывает слот на сигнал
  *
@@ -54,15 +56,15 @@ comet_server_signal.connect = function(slot_name, signal_name, slot_function)
     {
         slot_function = signal_name;
         signal_name = slot_name;
-        slot_name = Math.random()+""+Math.random()
+        slot_name = "sig" + (comet_server_signal.sigId++)
     }
 
     if (comet_server_signal.slotArray[signal_name] === undefined)
     {
-        comet_server_signal.slotArray[signal_name] = new Array()
+        comet_server_signal.slotArray[signal_name] = {}
     }
     comet_server_signal.slotArray[signal_name][slot_name] = slot_function;
-    if(comet_server_signal.debug) console.log("На прослушивание сигнала " + signal_name + " добавлен слот " + slot_name + "")
+    if(comet_server_signal.debug) console.log("На прослушивание сигнала " + signal_name + " добавлен слот " + slot_name + "", comet_server_signal.slotArray)
     return slot_name;
 }
 
@@ -72,15 +74,15 @@ comet_server_signal.connect = function(slot_name, signal_name, slot_function)
  */
 comet_server_signal.disconnect = function(slot_name, signal_name)
 {
-    if (comet_server_signal.slotArray[signal_name] === undefined)
+    if (comet_server_signal.slotArray[signal_name] !== undefined)
     {
-        comet_server_signal.slotArray[signal_name] = new Array()
+        if (comet_server_signal.slotArray[signal_name][slot_name] !== undefined)
+        {
+            comet_server_signal.slotArray[signal_name][slot_name] = undefined;
+            return true
+        }
     }
-
-    if (comet_server_signal.slotArray[signal_name][slot_name] !== undefined)
-    {
-        delete comet_server_signal.slotArray[signal_name][slot_name]
-    }
+    return false
 }
 
 /**
@@ -100,6 +102,7 @@ comet_server_signal.emit = function(signal_name, param, SignalNotFromThisTab)
         if(comet_server_signal.debug) console.log("Сигнал " + signal_name + " подписаны слоты")
         for (var slot in comet_server_signal.slotArray[signal_name])
         {
+            if(comet_server_signal.slotArray[signal_name][slot] !== undefined)
             comet_server_signal.slotArray[signal_name][slot](param,signal_name, SignalNotFromThisTab === true)
         }
 
@@ -184,8 +187,13 @@ cometApi = function(opt)
     /**
      * @private
      */
-    this.version = "2.1";
+    this.version = "2.31";
 
+    /**
+     * @private
+     */
+    this.nodeName = "app.comet-server.ru";
+    
     /**
      * @private
      */
@@ -255,9 +263,10 @@ cometApi = function(opt)
     this.reg_exp = new RegExp(/^([^.]+)\.([^.]+)$/);
 
     /**
+     * Определяет надо ли использовать https или http
      * @private
      */
-    this.protocol = document.location.protocol.replace(/[^s]/img, "");
+    this.protocol = 's'; //document.location.protocol.replace(/[^s]/img, "");
 
     /**
      * @private
@@ -319,11 +328,6 @@ cometApi = function(opt)
      * @private
      */
     this.send_msg_subscription = false;
-
-    /**
-     * @private
-     */
-    this.url = "";
 
     /**
      * Уровень логирования
@@ -466,6 +470,38 @@ cometApi = function(opt)
             }
     }
 
+    this.stripslashes = function(str)
+    {
+        //       discuss at: http://phpjs.org/functions/stripslashes/
+        //      original by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+        //      improved by: Ates Goral (http://magnetiq.com)
+        //      improved by: marrtins
+        //      improved by: rezna
+        //         fixed by: Mick@el
+        //      bugfixed by: Onno Marsman
+        //      bugfixed by: Brett Zamir (http://brett-zamir.me)
+        //         input by: Rick Waldron
+        //         input by: Brant Messenger (http://www.brantmessenger.com/)
+        // reimplemented by: Brett Zamir (http://brett-zamir.me)
+        //        example 1: stripslashes('Kevin\'s code');
+        //        returns 1: "Kevin's code"
+        //        example 2: stripslashes('Kevin\\\'s code');
+        //        returns 2: "Kevin\'s code"
+
+        return (str + '')
+          .replace(/\\(.?)/g, function(s, n1) {
+            switch (n1) {
+              case '\\':
+                return '\\';
+              case '0':
+                return '\u0000';
+              case '':
+                return '';
+              default:
+                return n1;
+            }
+          });
+    }
     /** 
      * Выполняет привязку callBack функции к событию.
      * И при происшествии события на которое мы подписывались в функции subscription
@@ -477,15 +513,16 @@ cometApi = function(opt)
      * @param function callBack
      * @param string specialMarker Если передать не undefined то после прихода 
      * события произойдёт отписка и кол бек будет навешан только на конкретно наш ответ.
+     * @return string Имя сигнала, может понадобится для того чтобы отписатся от сообщений.
      */
     this.subscription_callBack = function(name, callBack, specialMarker)
     {
         var thisObj = this;
-        
+        var sigId = name+"&&";
         if(specialMarker === undefined)
         {
             // Подписка на сообщения от сервера для нашей вкладки
-            comet_server_signal().connect(name,  function(param)
+            sigId += comet_server_signal().connect(name, function(param)
             {
                 if(param.server_info.marker !== thisObj.custom_id && param.server_info.marker !== undefined)
                 {
@@ -498,7 +535,7 @@ cometApi = function(opt)
         else
         { 
             // Подписка на сообщения от сервера доставленые специально и единоразово для переданного callBack
-            comet_server_signal().connect(specialMarker, name,  function(param)
+            sigId += comet_server_signal().connect(specialMarker, name,  function(param)
             {
                 if(param.server_info.marker !== specialMarker)
                 {
@@ -510,9 +547,22 @@ cometApi = function(opt)
                 callBack(param);
             });
         }
-        return true;
+        return sigId;
     }
-
+    
+    /**
+     * Отписывает функцию от получения сообщений
+     * @public
+     * @param string sigId Идентификатор подписки, возвращается функцией subscription в момент подписки
+     * @returns undefined
+     */
+    this.unsubscription = function(sigId)
+    {
+        var sigName = sigId.replace(/^(.*)&&.*$/, "$1");
+        var slotName = sigId.replace(/^.*&&(.*)$/, "$1"); 
+        return comet_server_signal().disconnect(slotName, sigName);
+    }
+    
     /**
      * Добавляет подписки на каналы, события в каналах и отчёты о доставке сообщений в каналы.
      *
@@ -543,6 +593,7 @@ cometApi = function(opt)
      * Обратите внимание что дляна имени канала должна быть больше 2 символов
      * @param {string} name Имя канала
      * @param {function} callback Функция callback
+     * @return string Имя сигнала, может понадобится для того чтобы отписатся от сообщений. Или false если что то пошло не так.
      */
     this.subscription = function(name, callback)
     {
@@ -551,7 +602,7 @@ cometApi = function(opt)
             return false;
         }
 
-        var thisObj = this;
+        var thisObj = this; 
         var nameArray = name.split("\n");
         if(nameArray.length > 1)
         {
@@ -572,29 +623,25 @@ cometApi = function(opt)
         if(typeof name === "function" )
         {
             // Подписка на все входищие сообщения из всех каналов на которые подписан этот клиент
-            comet_server_signal().connect("comet_server_msg", name);
-            return true;
+            return "comet_server_msg&&" + comet_server_signal().connect("comet_server_msg", name);
         }
 
         if( name === "msg" || /^msg\./.test(name) )
         {
             // Подписка на сообщения от сервера доставленые в соответсвии с данными авторизации (тоесть по id пользователя) 
-            thisObj.subscription_callBack(name, callback); 
-            return true;
+            return thisObj.subscription_callBack(name, callback);  
         }
 
         if(/^answer_to_web_/.test(name))
         {
             // Подписка на отчёт о доставке
-            thisObj.subscription_callBack(name, callback); 
-            return true;
+            return thisObj.subscription_callBack(name, callback);  
         }
         else if(/^#/.test(name))
         {
             // Подписка на отчёт о доставке
             name = name.replace("#", "_answer_to_");
-            thisObj.subscription_callBack(name, callback); 
-            return true;
+            return thisObj.subscription_callBack(name, callback);  
         }
 
         if( name === ""  )
@@ -608,12 +655,12 @@ cometApi = function(opt)
             return false;
         }
 
-        thisObj.subscription_callBack(name, callback); 
+        var sigId = thisObj.subscription_callBack(name, callback); 
 
         if( name === "comet_server_msg" )
         {
             // Подписка на все сообщения разом
-            return true;
+            return sigId;
         }
 
         if(this.reg_exp.test(name))
@@ -626,7 +673,7 @@ cometApi = function(opt)
         {
             if(this.subscription_array[i] === name )
             {
-                return true;
+                return sigId;
             }
         }
 
@@ -653,11 +700,11 @@ cometApi = function(opt)
             }
         }
         else
-        {   
+        {
             // Мы slave вкладка
             comet_server_signal().send_emit('comet_msg_slave_add_subscription_and_restart',this.subscription_array.join("\n"))
         }
-        return true;
+        return sigId;
     }
     
     this.isMaster = function()
@@ -674,22 +721,37 @@ cometApi = function(opt)
         this.send_msg("subscription\n"+this.subscription_array.join("\n"))
     }
 
+    /**
+     * @private
+     */
+    this.getUrl = function(use)
+    {
+        if(this.UseWebSocket() === true)
+        {
+            return 'ws'+this.protocol+'://'+this.nodeName+'/ws/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
+        }
+
+        return 'http'+this.protocol+'://'+this.nodeName+'/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
+    }
+
     this.UseWebSocket = function(use)
     {
         if(use === true)
         {
             this.use_WebSocket = use;
-            if(this.options) this.url = 'ws'+this.protocol+'://app.comet-server.ru/ws/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
         }
         else if(use === false)
         {
             this.use_WebSocket = use;
-            if(this.options) this.url = 'http'+this.protocol+'://app.comet-server.ru/sesion='+this.options.user_key+'&myid='+this.options.user_id+'&devid='+this.options.dev_id+"&v="+this.version+"&api=js";
         }
+
+        if(this.use_WebSocket === undefined)
+        {
+            this.use_WebSocket = (window.WebSocket !== undefined)
+        }
+
         return this.use_WebSocket;
     }
-
-    this.UseWebSocket(window.WebSocket !== undefined);
 
     /**
      * Запуск соединения
@@ -741,7 +803,7 @@ cometApi = function(opt)
         }
         else
         {
-            console.error("Не установлен dev_id")
+            console.error("Star.Comet: Не установлен dev_id")
             return false;
         }
     }
@@ -827,31 +889,31 @@ cometApi = function(opt)
            comet_server_signal().send_emit('comet_msg_master_signal')
         }, this.start_timer/6);
 
-        comet_server_signal().connect(false,'comet_msg_slave_signal_restart', function(p,arg) // подключение на сигнал рестарта от других вкладок
+        comet_server_signal().connect('comet_msg_slave_signal_restart', function(p,arg) // подключение на сигнал рестарта от других вкладок
         {
             if(thisObj.LogLevel) console.log([p,arg])
             thisObj.restart()
         })
 
-        comet_server_signal().connect(false,'comet_msg_slave_signal_stop', function(p,arg)    // подключение на сигнал остоновки от других вкладок
+        comet_server_signal().connect('comet_msg_slave_signal_stop', function(p,arg)    // подключение на сигнал остоновки от других вкладок
         {
             if(thisObj.LogLevel) console.log([p,arg])
             thisObj.stop()
         })
 
-        comet_server_signal().connect(false,'comet_msg_slave_signal_start', function(p,arg)    // подключение на сигнал запуска от других вкладок
+        comet_server_signal().connect('comet_msg_slave_signal_start', function(p,arg)    // подключение на сигнал запуска от других вкладок
         {
             if(thisObj.LogLevel) console.log([p,arg])
             thisObj.start()
         })
 
-        comet_server_signal().connect(false,'comet_msg_slave_add_subscription_and_restart', function(p,arg)// подключение на сигнал переподписки от других вкладок
+        comet_server_signal().connect('comet_msg_slave_add_subscription_and_restart', function(p,arg)// подключение на сигнал переподписки от других вкладок
         {
             if(thisObj.LogLevel) console.log([p,arg])
             thisObj.subscription(p)
         })
 
-        comet_server_signal().connect(false,'comet_msg_slave_send_msg', function(p,arg)// подключение на сигнал отправки сообщений от других вкладок
+        comet_server_signal().connect('comet_msg_slave_send_msg', function(p,arg)// подключение на сигнал отправки сообщений от других вкладок
         {
             if(thisObj.LogLevel) console.log([p,arg])
             thisObj.send_msg(p)
@@ -879,6 +941,12 @@ cometApi = function(opt)
     }
 
     /**
+     * Если true то произошла критическая ошибка после которой нет смысла подключатся к серверу
+     * @private
+     */
+    this.hasCriticalError = false;
+    
+    /**
      * Обрабатывает распарсеное входящее сообщение
      *
      * Формат сообщения:{msg:"", pipe:"", eror:""}
@@ -891,6 +959,14 @@ cometApi = function(opt)
         {
             return -1;
         }
+        
+        if(msg.error > 400)
+        {
+            // Критическая ошибка, подключение невозможно. http://comet-server.ru/wiki/doku.php/comet:javascript_api:error
+            console.error("CometServerError:"+msg.error, "\n", msg.data, "\n", "Критическая ошибка, подключение невозможно. Подробности в документации http://comet-server.ru/wiki/doku.php/comet:javascript_api:error" )
+            this.hasCriticalError = true;
+        }
+
 
         if(msg.authorized !== undefined)
         {
@@ -901,7 +977,7 @@ cometApi = function(opt)
         var web_id = 0;
         if(/^A::/.test(msg.data))
         {
-            // Проверка не пришлоли вместе с данными информации о отправителе.
+            // Проверка не пришла ли вместе с данными информация о отправителе.
             var r = msg.data.split(";")
             web_id = r[0].replace("A::", "")/1;
             msg.data = r[1];
@@ -912,8 +988,11 @@ cometApi = function(opt)
             msg.data = this.Base64.decode(msg.data)
         }
         try{
+
             if(this.LogLevel) console.log(["msg", msg.data, "web_id:"+web_id]);
-            var pmsg = JSON.parse(msg.data)
+           
+            var pmsg = JSON.parse(this.stripslashes(msg.data))
+            //var pmsg = JSON.parse(msg.data)
 
             if(pmsg !== undefined)
             {
@@ -921,7 +1000,7 @@ cometApi = function(opt)
             }
         }
         catch (failed){  }
-
+        
         var UserData = msg.data;
         var event_name = msg.event_name;
         
@@ -931,7 +1010,16 @@ cometApi = function(opt)
             event_name = msg.data.event_name
         }
         
-        var result_msg = {"data": UserData, "server_info":{"user_id":web_id, pipe:msg.pipe, event:event_name, history:msg.history === true, marker:msg.marker }} 
+        var result_msg = {
+            "data": UserData,
+            "server_info":{
+                "user_id":web_id,
+                pipe:msg.pipe,
+                event:event_name,
+                history:msg.history === true,
+                marker:msg.marker
+            }
+        }
 
         if(this.LogLevel) console.log(["msg", msg, result_msg]);
         
@@ -1178,10 +1266,15 @@ cometApi = function(opt)
         this.in_conect_to_server = true;
         if(!this.is_master) this.setAsMaster();
 
+        if(this.hasCriticalError)
+        {
+            // Если true то произошла критическая ошибка после которой нет смысла подключатся к серверу
+            return false;
+        }
 
         if(this.UseWebSocket())
         {
-            this.socket = new WebSocket(this.url);
+            this.socket = new WebSocket(this.getUrl());
             
             this.socket.onopen = function() {
                 if(thisObj.LogLevel) console.log("WS Соединение установлено.");
@@ -1230,7 +1323,7 @@ cometApi = function(opt)
                       // Переход произойдёт примерно через 3 секунды работы
                       thisObj.UseWebSocket(false);
                       thisObj.time_to_reconect_on_error = 1000;
-                      if(thisObj.LogLevel) console.log("Произошло более 10 ошибок вебсокетов то перейдём на long poling"); // Не делать этого если уже были переданы данные по вебсокету
+                      console.error("Произошло более 10 ошибок вебсокетов то перейдём на long poling"); // Не делать этого если уже были переданы данные по вебсокету
                   }
                   else if(thisObj.web_socket_error > 9)
                   {
@@ -1340,7 +1433,7 @@ cometApi = function(opt)
                 }
             };
 
-            this.request.open("POST", this.url, true);
+            this.request.open("POST", this.getUrl(), true);
             this.request.send(this.subscription_array.join("\n")); // Именно здесь отправляются данные
         }
 
