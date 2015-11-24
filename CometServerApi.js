@@ -187,7 +187,7 @@ cometApi = function(opt)
     /**
      * @private
      */
-    this.version = "2.31";
+    this.version = "2.32";
 
     /**
      * @private
