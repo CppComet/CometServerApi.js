@@ -1238,6 +1238,7 @@ cometApi = function(opt)
      * @param string event_name имя события в канале
      * @param string msg Сообщение
      * @returns boolean
+     * @version 2
      */
     this.web_pipe_send = function(pipe_name, event_name, msg)
     {
