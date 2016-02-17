@@ -187,7 +187,7 @@ cometApi = function(opt)
     /**
      * @private
      */
-    this.version = "2.61";
+    this.version = "2.71";
 
     /**
      * @private
@@ -1119,7 +1119,7 @@ cometApi = function(opt)
 
         if(this.LogLevel) console.log(["msg", msg, result_msg]);
 
-        if(msg.pipe !== undefined)
+        if(msg.SendToUser === undefined)
         {
             // Если свойство pipe определено то это сообщение из канала.
             comet_server_signal().send_emit(msg.pipe, result_msg)
@@ -1381,11 +1381,11 @@ cometApi = function(opt)
                 // Отправка сообщений из очереди.
                 thisObj.send_msg_from_queue();
 
-                if(!thisObj.options.nostat)
+                if(thisObj.options.nostat !== true)
                 {
                     setTimeout(function()
                     {
-                        if(!thisObj.isSendStatisticsData)
+                        if(thisObj.isSendStatisticsData)
                         {
                             return;
                         }
@@ -1667,3 +1667,5 @@ function CometServer()
 
     return __CometServer;
 }
+
+
