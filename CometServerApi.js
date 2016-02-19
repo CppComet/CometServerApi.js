@@ -187,7 +187,7 @@ cometApi = function(opt)
     /**
      * @private
      */
-    this.version = "2.71";
+    this.version = "2.80";
 
     /**
      * @private
@@ -1073,24 +1073,40 @@ cometApi = function(opt)
         if(msg.event_name === undefined)
         {
             msg.data = this.Base64.decode(msg.data)
-        }
-        else
-        {
-            msg.data = this.stripslashes(msg.data)
-        }
+        } 
+        
         try{
-
             if(this.LogLevel) console.log(["msg", msg.data, "web_id:"+web_id]);
 
-            var pmsg = JSON.parse(msg.data)
+            pmsg = JSON.parse(msg.data)
             //var pmsg = JSON.parse(msg.data)
+            
+            //typeof pmsg
 
             if(pmsg !== undefined)
             {
                 msg.data = pmsg
             }
         }
-        catch (failed){  }
+        catch (failed)
+        {
+            msg.data = this.stripslashes(msg.data)
+            try
+            {
+                if(this.LogLevel) console.log(["msg", msg.data, "web_id:"+web_id]);
+                pmsg = JSON.parse(msg.data)
+                //var pmsg = JSON.parse(msg.data)
+
+                if(pmsg !== undefined)
+                {
+                    msg.data = pmsg
+                }
+            }
+            catch (failed)
+            {
+
+            }
+        }
 
         var UserData = msg.data;
         var event_name = msg.event_name;
@@ -1302,6 +1318,23 @@ cometApi = function(opt)
         return this.send_msg("web_pipe2\n"+pipe_name+"\n"+event_name+"\n*\n"+JSON.stringify(msg));
     }
 
+    this.sendStatistics = function(plugin_name, plugin_version, plugin_data)
+    {  
+        if(this.LogLevel) console.log(["sendStatistics", plugin_name, plugin_version, plugin_data]); 
+        return this.send_msg("statistics\n"+JSON.stringify(
+                {
+                    url:window.location.href,
+                    dev_id:this.options.dev_id,
+                    version: this.version,
+                    plugin: {
+                        name:plugin_name,
+                        version:plugin_version,
+                        data:plugin_data
+                    }
+                }));
+    }
+    
+    
     /**
      * Отправляет запрос на получение истории по каналу pipe_name
      * @param {string} pipe_name
