@@ -187,7 +187,7 @@ cometApi = function(opt)
     /**
      * @private
      */
-    this.version = "2.80";
+    this.version = "2.81";
 
     /**
      * @private
@@ -1094,7 +1094,7 @@ cometApi = function(opt)
             try
             {
                 if(this.LogLevel) console.log(["msg", msg.data, "web_id:"+web_id]);
-                pmsg = JSON.parse(msg.data)
+                var pmsg = JSON.parse(msg.data)
                 //var pmsg = JSON.parse(msg.data)
 
                 if(pmsg !== undefined)
@@ -1615,7 +1615,7 @@ cometApi = function(opt)
             // Подписка для send_msg: Если мы станем slave вкладкой то все сообщения ожидающие в очереди отправим мастер вкладке.
             //comet_server_signal().disconnect("slot_comet_msg_set_as_slave", 'comet_msg_set_as_slave');
 
-            console.log('comet_msg_set_as_slave: set is slave');
+            if(this.LogLevel) console.log('comet_msg_set_as_slave: set is slave');
             thisObj.send_msg_from_queue();
 
             // подключение на сигнал статуса авторизации от других вкладок
