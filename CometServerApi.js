@@ -187,7 +187,7 @@ cometApi = function(opt)
     /**
      * @private
      */
-    this.version = "2.81";
+    this.version = "2.82";
 
     /**
      * @private
@@ -1432,6 +1432,7 @@ cometApi = function(opt)
 
             this.socket.onclose = function(event)
             {
+                thisObj.in_conect_to_server = false;
                 if (event.wasClean)
                 {
                   if(thisObj.LogLevel) console.log('WS Соединение закрыто чисто');
@@ -1440,7 +1441,6 @@ cometApi = function(opt)
                 {
                   if(thisObj.LogLevel) console.log('WS Обрыв соединения'); // например, "убит" процесс сервера
                   thisObj.socket.close();
-                  thisObj.in_conect_to_server = false;
                   thisObj.web_socket_error++; // Увеличение колва ошибок вебсокетов
 
                   if(thisObj.web_socket_error_timeOut_id !== undefined )
@@ -1700,5 +1700,4 @@ function CometServer()
 
     return __CometServer;
 }
-
 
