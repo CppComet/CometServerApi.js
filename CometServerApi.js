@@ -202,7 +202,7 @@ var cometServer = function(opt)
 /**
  * @private
  */
-cometServer.prototype.version = "2.90";
+cometServer.prototype.version = "2.92";
 
 /**
  * @private
@@ -528,7 +528,7 @@ cometServer.prototype.stripslashes = function(str)
  */
 cometServer.prototype.subscription_callBack = function(name, callBack, specialMarker)
 {
-    var thisObj = this;
+    var thisObj = cometServer.prototype;
     var sigId = name+"&&";
     if(specialMarker === undefined)
     {
@@ -562,13 +562,38 @@ cometServer.prototype.subscription_callBack = function(name, callBack, specialMa
 }
 
 /**
+ * Массив идентификаторов подписок, нужен для того чтоб было можно отписаться от всех подписок сразу.
+ * @type Array
+ */
+cometServer.prototype.subscription_slot_array = [];
+
+/**
  * Отписывает функцию от получения сообщений
  * @public
- * @param string sigId Идентификатор подписки, возвращается функцией subscription в момент подписки
- * @returns undefined
+ * @param {string|undefined} sigId Идентификатор подписки, возвращается функцией subscription в момент подписки или если sigId === undefined то отпишет от всех подписок сразу.
+ * 
  */
 cometServer.prototype.unsubscription = function(sigId)
 {
+    if(sigId === undefined)
+    {
+        for(var i in cometServer.prototype.subscription_slot_array)
+        {
+            var val = cometServer.prototype.subscription_slot_array[i];
+            
+            var sigName = val.replace(/^(.*)&&.*$/, "$1");
+            var slotName = val.replace(/^.*&&(.*)$/, "$1");
+            comet_server_signal().disconnect(slotName, sigName);
+        }
+        
+        cometServer.prototype.subscription_slot_array = []
+        return true;
+    }
+    else if(!sigId)
+    {
+        return false;
+    }
+    
     var sigName = sigId.replace(/^(.*)&&.*$/, "$1");
     var slotName = sigId.replace(/^.*&&(.*)$/, "$1");
     return comet_server_signal().disconnect(slotName, sigName);
@@ -613,7 +638,7 @@ cometServer.prototype.subscription = function(name, callback)
         return false;
     }
 
-    var thisObj = this;
+    var thisObj = cometServer.prototype;
     var nameArray = name.split("\n");
     if(nameArray.length > 1)
     {
@@ -634,25 +659,33 @@ cometServer.prototype.subscription = function(name, callback)
     if(typeof name === "function" )
     {
         // Подписка на все входищие сообщения из всех каналов на которые подписан этот клиент
-        return "comet_server_msg&&" + comet_server_signal().connect("comet_server_msg", name);
+        var sigId = "comet_server_msg&&" + comet_server_signal().connect("comet_server_msg", name);
+        cometServer.prototype.subscription_slot_array.push(sigId);
+        return sigId;
     }
 
     if( name === "msg" || /^msg\./.test(name) )
     {
         // Подписка на сообщения от сервера доставленые в соответсвии с данными авторизации (тоесть по id пользователя)
-        return thisObj.subscription_callBack(name, callback);
+        var sigId = thisObj.subscription_callBack(name, callback);
+        cometServer.prototype.subscription_slot_array.push(sigId);
+        return sigId;
     }
 
     if(/^answer_to_web_/.test(name))
     {
         // Подписка на отчёт о доставке
-        return thisObj.subscription_callBack(name, callback);
+        var sigId = thisObj.subscription_callBack(name, callback);
+        cometServer.prototype.subscription_slot_array.push(sigId);
+        return sigId;
     }
     else if(/^#/.test(name))
     {
         // Подписка на отчёт о доставке
         name = name.replace("#", "_answer_to_");
-        return thisObj.subscription_callBack(name, callback);
+        var sigId = thisObj.subscription_callBack(name, callback);
+        cometServer.prototype.subscription_slot_array.push(sigId);
+        return sigId;
     }
 
     if( name === ""  )
@@ -667,6 +700,7 @@ cometServer.prototype.subscription = function(name, callback)
     }
 
     var sigId = thisObj.subscription_callBack(name, callback);
+    cometServer.prototype.subscription_slot_array.push(sigId); 
 
     if( name === "comet_server_msg" )
     {
@@ -683,7 +717,7 @@ cometServer.prototype.subscription = function(name, callback)
     for(var i in cometServer.prototype.subscription_array)
     {
         if(cometServer.prototype.subscription_array[i] === name )
-        {
+        { 
             return sigId;
         }
     }
@@ -884,25 +918,21 @@ cometServer.prototype.restart = function(opt)
             clearTimeout( cometServer.prototype.restart_time_id );
         }
 
-        if(!cometServer.prototype.in_abort)
+        cometServer.prototype.in_abort = true;
+        if(cometServer.prototype.UseWebSocket())
         {
-            cometServer.prototype.in_abort = true;
-            if(cometServer.prototype.UseWebSocket())
-            {
-                cometServer.prototype.socket.close();
-            }
-            else
-            {
-                cometServer.prototype.request.abort();
-            }
+            cometServer.prototype.socket.close();
         }
-
-        var thisObj = this;
+        else
+        {
+            cometServer.prototype.request.abort();
+        }
+ 
         // Таймер задержки рестарта чтоб не выполнять рестарт чаще раза в секунду.
         cometServer.prototype.restart_time_id = setTimeout(function()
         {
-            thisObj.in_abort = false;
-            thisObj.conect_to_server();
+            cometServer.prototype.in_abort = false;
+            cometServer.prototype.conect_to_server();
         },1000)
     }
     else
@@ -917,7 +947,7 @@ cometServer.prototype.restart = function(opt)
  */
 cometServer.prototype.setAsMaster = function()
 {
-    var thisObj = this;
+    var thisObj = cometServer.prototype;
     cometServer.prototype.is_master = true;
     if(cometServer.prototype.LogLevel) console.log("setAsMaster")
 
@@ -1176,7 +1206,7 @@ cometServer.prototype.msg_cultivate = function( msg )
  */
 cometServer.prototype.send_msg_from_queue = function()
 {
-    var thisObj = this;
+    var thisObj = cometServer.prototype;
     if(cometServer.prototype.is_master === undefined)
     {
         return false;
@@ -1392,7 +1422,7 @@ cometServer.prototype.count_users_in_pipe = function(pipe_name, callBack)
  */
 cometServer.prototype.conect_to_server = function()
 {
-    var thisObj = this;
+    var thisObj = cometServer.prototype;
 
     if(cometServer.prototype.in_conect_to_server)
     {
@@ -1414,7 +1444,8 @@ cometServer.prototype.conect_to_server = function()
     {
         cometServer.prototype.socket = new WebSocket(cometServer.prototype.getUrl());
 
-        cometServer.prototype.socket.onopen = function() {
+        cometServer.prototype.socket.onopen = function() 
+        {
             if(thisObj.LogLevel) console.log("WS Соединение установлено.");
 
             if(thisObj.send_msg_subscription === false) thisObj.send_curent_subscription(); // Подписываемся на то что были подписаны до разрыва соединения
@@ -1441,7 +1472,7 @@ cometServer.prototype.conect_to_server = function()
         cometServer.prototype.socket.onclose = function(event)
         {
             thisObj.in_conect_to_server = false;
-            if (event.wasClean)
+            if (event.wasClean || cometServer.prototype.in_abort === true)
             {
               if(thisObj.LogLevel) console.log('WS Соединение закрыто чисто');
             }
@@ -1504,7 +1535,9 @@ cometServer.prototype.conect_to_server = function()
             }
         };
 
-        cometServer.prototype.socket.onerror = function(error) {
+        cometServer.prototype.socket.onerror = function(error) 
+        {
+            thisObj.in_conect_to_server = false;
             if(thisObj.LogLevel) console.log("Ошибка " + error.message);
         };
     }
@@ -1526,7 +1559,7 @@ cometServer.prototype.conect_to_server = function()
 
         cometServer.prototype.request.onreadystatechange = function()
         {
-            if( thisObj.request.status === 200 && thisObj.in_abort !== true)
+            if( thisObj.request.status === 200 && cometServer.prototype.in_abort !== true)
             {
                 var re = thisObj.request.responseText;
 
@@ -1592,7 +1625,7 @@ cometServer.prototype.conect_to_server = function()
  */
 cometServer.prototype.conect = function(callback)
 {
-    var thisObj = this;
+    var thisObj = cometServer.prototype;
     if(cometServer.prototype.is_master)
     {
         return cometServer.prototype.conect_to_server();
@@ -1705,5 +1738,6 @@ function CometServer()
 { 
     return cometApi;
 }
+
 
 
