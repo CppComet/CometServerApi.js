@@ -202,7 +202,7 @@ var cometServer = function(opt)
 /**
  * @private
  */
-cometServer.prototype.version = "2.92";
+cometServer.prototype.version = "3.01";
 
 /**
  * @private
@@ -213,7 +213,13 @@ cometServer.prototype.options = {};
  * @private
  */
 cometServer.prototype.options.nodeName = "app.comet-server.ru";
+cometServer.prototype.options.nodeArray = ["app.comet-server.ru"]// ["n1-app.comet.su", "n2-app.comet.su"]; // 
 
+/*comet.su
+n1-app.comet.su
+n2-app.comet.su
+n3-app.comet.su
+n4-app.comet.su*/
 
 /**
  * @private
@@ -246,10 +252,16 @@ cometServer.prototype.custom_id = cometServer.prototype.custom_id.replace(/[^0-9
 
 
 /**
- * Время на переподключение в милисекундах
+ * Время на переподключение в милисекундах после второй подряд ошибки подключения
  * @private
  */
-cometServer.prototype.time_to_reconect_on_error = 100;
+cometServer.prototype.time_to_reconect_on_error = 1000;
+
+/**
+ * Время на переподключение в милисекундах после первой ошибки подключения
+ * @private
+ */
+cometServer.prototype.time_to_reconect_on_close = 100;
 
 /**
  * @private
@@ -277,7 +289,7 @@ cometServer.prototype.reg_exp = new RegExp(/^([^.]+)\.([^.]+)$/);
  * Определяет надо ли использовать https или http
  * @private
  */
-cometServer.prototype.protocol = 's'; //document.location.protocol.replace(/[^s]/img, "");
+cometServer.prototype.protocol = document.location.protocol.replace(/[^s]/img, "");
 
 /**
  * @private
@@ -313,7 +325,8 @@ cometServer.prototype.authorized_status;
 /**
  * @private
  */
-cometServer.prototype.socket;
+cometServer.prototype.socket; 
+cometServer.prototype.socketArray = [];
 
 /**
  * @private
@@ -336,7 +349,9 @@ cometServer.prototype.status;
 cometServer.prototype.send_msg_queue = [];
 
 /**
+ * содержит пакет данных о подписках готовый к отправке по вебсокету
  * @private
+ * @type {string}
  */
 cometServer.prototype.send_msg_subscription = false;
 
@@ -535,6 +550,7 @@ cometServer.prototype.subscription_callBack = function(name, callBack, specialMa
         // Подписка на сообщения от сервера для нашей вкладки
         sigId += comet_server_signal().connect(name, function(param)
         {
+            console.log("marker", param.server_info.marker, thisObj.custom_id)
             if(param.server_info.marker !== thisObj.custom_id && param.server_info.marker !== undefined)
             {
                // Данное сообщение преднозначено не этой вкладке.
@@ -786,14 +802,19 @@ cometServer.prototype.send_curent_subscription = function()
 /**
  * @private
  */
-cometServer.prototype.getUrl = function(use)
+cometServer.prototype.getUrl = function(nodename)
 {
+    if(nodename === undefined)
+    {
+       nodename = cometServer.prototype.options.nodeName 
+    }
+    
     if(cometServer.prototype.UseWebSocket() === true)
     {
-        return 'ws'+cometServer.prototype.protocol+'://'+cometServer.prototype.options.nodeName+'/ws/sesion='+cometServer.prototype.options.user_key+'&myid='+cometServer.prototype.options.user_id+'&devid='+cometServer.prototype.options.dev_id+"&v="+cometServer.prototype.version+"&api=js";
+        return 'ws'+cometServer.prototype.protocol+'://'+nodename+'/ws/sesion='+cometServer.prototype.options.user_key+'&myid='+cometServer.prototype.options.user_id+'&devid='+cometServer.prototype.options.dev_id+"&v="+cometServer.prototype.version+"&api=js";
     }
 
-    return 'http'+cometServer.prototype.protocol+'://'+cometServer.prototype.options.nodeName+'/sesion='+cometServer.prototype.options.user_key+'&myid='+cometServer.prototype.options.user_id+'&devid='+cometServer.prototype.options.dev_id+"&v="+cometServer.prototype.version+"&api=js";
+    return 'http'+cometServer.prototype.protocol+'://'+nodename+'/sesion='+cometServer.prototype.options.user_key+'&myid='+cometServer.prototype.options.user_id+'&devid='+cometServer.prototype.options.dev_id+"&v="+cometServer.prototype.version+"&api=js";
 }
 
 cometServer.prototype.UseWebSocket = function(use)
@@ -806,8 +827,7 @@ cometServer.prototype.UseWebSocket = function(use)
     {
         cometServer.prototype.use_WebSocket = use;
     }
-
-    if(cometServer.prototype.use_WebSocket === undefined)
+    else if(cometServer.prototype.use_WebSocket === undefined)
     {
         cometServer.prototype.use_WebSocket = (window.WebSocket !== undefined)
     }
@@ -815,6 +835,36 @@ cometServer.prototype.UseWebSocket = function(use)
     return cometServer.prototype.use_WebSocket;
 }
 
+/**
+ * Указывает надо ли использовать wss или обойтись ws
+ * @param {Boolean} use
+ * @returns {Boolean}
+ */
+cometServer.prototype.UseWss = function(use)
+{
+    if(use)
+    {
+        cometServer.prototype.protocol = "s"
+    }
+    else if(use === undefined)
+    {
+        cometServer.prototype.protocol = document.location.protocol.replace(/[^s]/img, "");
+    }
+    else
+    {
+        cometServer.prototype.protocol = ""
+    }
+    
+    return cometServer.prototype.protocol === "s"
+}
+
+/**
+ * @returns {Boolean} Используется ли сейчас wss
+ */
+cometServer.prototype.isUseWss = function()
+{
+    return cometServer.prototype.protocol === "s"
+}
 /**
  * Запуск соединения
  * @param {Object} opt Объект с параметрами
@@ -881,7 +931,14 @@ cometServer.prototype.stop = function()
 
         if(cometServer.prototype.UseWebSocket())
         {
-            cometServer.prototype.socket.close();
+            //cometServer.prototype.socket.close();
+            for(var i in cometServer.prototype.socketArray)
+            {
+                if(cometServer.prototype.socketArray[i])
+                {
+                    cometServer.prototype.socketArray[i].close();
+                } 
+            }
         }
         else
         {
@@ -921,7 +978,14 @@ cometServer.prototype.restart = function(opt)
         cometServer.prototype.in_abort = true;
         if(cometServer.prototype.UseWebSocket())
         {
-            cometServer.prototype.socket.close();
+            //cometServer.prototype.socket.close();
+            for(var i in cometServer.prototype.socketArray)
+            {
+                if(cometServer.prototype.socketArray[i])
+                {
+                    cometServer.prototype.socketArray[i].close();
+                } 
+            }
         }
         else
         {
@@ -1201,12 +1265,64 @@ cometServer.prototype.msg_cultivate = function( msg )
 
 
 /**
+ * Вернёт true только если все соединения установлены и активны
+ * @returns {Boolean}
+ */
+cometServer.prototype.socketArrayTest = function()
+{
+    for(var i in cometServer.prototype.socketArray)
+    {
+        var socket = cometServer.prototype.socketArray[i]; 
+        if(socket &&  socket.readyState === 1)
+        {
+            continue;
+        } 
+        else
+        {
+            return false;
+        }
+    }
+    
+    return true; 
+}
+
+/**
+ * Отправляет данные по вебсокету (по первому из списка, и если он не доступен то по второму.)
+ * @param {string} data
+ * @returns {boolean}
+ */
+cometServer.prototype.socketArraySend = function(data)
+{
+    for(var i in cometServer.prototype.socketArray)
+    {
+        var socket = cometServer.prototype.socketArray[i]; 
+        if(socket &&  socket.readyState === 1)
+        { 
+            try
+            {
+                socket.send(data);
+            } 
+            catch (ex) 
+            {
+                if(cometServer.prototype.LogLevel ) 
+                {
+                    console.log("Не удалось отправить данные ", data, ex)
+                    continue;
+                }
+            }
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+/**
  * Отправляет все сообщения из очереди на комет сервер.
  * @private
  */
 cometServer.prototype.send_msg_from_queue = function()
-{
-    var thisObj = cometServer.prototype;
+{ 
     if(cometServer.prototype.is_master === undefined)
     {
         return false;
@@ -1237,23 +1353,29 @@ cometServer.prototype.send_msg_from_queue = function()
             return false;
         }
 
-        if(cometServer.prototype.socket &&  cometServer.prototype.socket.readyState === 1)
+        if(cometServer.prototype.socketArrayTest())
         {
             if(cometServer.prototype.send_msg_subscription !== false)
             {
                 if(cometServer.prototype.LogLevel ) console.error("WebSocket-send-subscription:"+cometServer.prototype.send_msg_subscription);
-                cometServer.prototype.socket.send(cometServer.prototype.send_msg_subscription);
+                cometServer.prototype.socketArraySend(cometServer.prototype.send_msg_subscription);
                 cometServer.prototype.send_msg_subscription = false;
             }
 
             if(cometServer.prototype.send_msg_queue.length > 0)
             {
+                var j = 10;
+                // Отправляет сообщения из очереди не сразу а с 20мс интервалом.
                 for(var i in cometServer.prototype.send_msg_queue)
                 {
-                    if(cometServer.prototype.LogLevel ) console.log("WebSocket-send-msg:"+cometServer.prototype.send_msg_queue[i]);
+                    j+= 20;
 
                     // Потом убрать setTimeout
-                    setTimeout( function(ri){thisObj.socket.send(ri); }, 10, cometServer.prototype.send_msg_queue[i])
+                    setTimeout( function(ri)
+                    {
+                        if(cometServer.prototype.LogLevel ) console.log("WebSocket-send-msg:", ri);
+                        cometServer.prototype.socketArraySend(ri);
+                    }, j, cometServer.prototype.send_msg_queue[i])
                 }
                 cometServer.prototype.send_msg_queue = []
             }
@@ -1288,6 +1410,7 @@ cometServer.prototype.add_msg_to_queue = function(msg)
 /**
  * отправка сообщения по веб сокету.
  * @private
+ * @param {string} msg Текст сообщения в виде одной строки
  */
 cometServer.prototype.send_msg = function(msg)
 {
@@ -1308,12 +1431,12 @@ cometServer.prototype.send_msg = function(msg)
             return false;
         }
 
-        if(cometServer.prototype.socket &&  cometServer.prototype.socket.readyState === 1)
+        if(cometServer.prototype.socketArrayTest())
         {
             cometServer.prototype.send_msg_from_queue();
 
             if(cometServer.prototype.LogLevel ) console.log("WebSocket-send-msg:"+msg);
-            cometServer.prototype.socket.send(msg);
+            cometServer.prototype.socketArraySend(msg);
             return true;
         }
         else
@@ -1356,6 +1479,13 @@ cometServer.prototype.web_pipe_send = function(pipe_name, event_name, msg)
     return cometServer.prototype.send_msg("web_pipe2\n"+pipe_name+"\n"+event_name+"\n*\n"+JSON.stringify(msg));
 }
 
+/**
+ * Отправляет статистику о использование плагинов
+ * @param {string} plugin_name Имя плагина
+ * @param {string} plugin_version Версия плагина
+ * @param {string} plugin_data Данные плагина
+ * @returns {Boolean}
+ */
 cometServer.prototype.sendStatistics = function(plugin_name, plugin_version, plugin_data)
 {  
     if(cometServer.prototype.LogLevel) console.log(["sendStatistics", plugin_name, plugin_version, plugin_data]); 
@@ -1385,16 +1515,15 @@ cometServer.prototype.get_pipe_log = function(pipe_name, callBack)
     {
         return false;
     }
-
-    var marker = cometServer.prototype.custom_id;
+ 
     if(callBack !== undefined)
     {
-        marker = cometServer.prototype.getCustomString();
+        var marker = cometServer.prototype.getCustomString();
         cometServer.prototype.subscription(pipe_name)
         cometServer.prototype.subscription_callBack(pipe_name, callBack, marker);
     }
 
-    cometServer.prototype.send_msg("pipe_log\n"+pipe_name+"\n"+marker+"\n");
+    cometServer.prototype.send_msg("pipe_log\n"+pipe_name+"\n"+cometServer.prototype.custom_id+"\n");
     return true;
 }
 
@@ -1442,104 +1571,147 @@ cometServer.prototype.conect_to_server = function()
 
     if(cometServer.prototype.UseWebSocket())
     {
-        cometServer.prototype.socket = new WebSocket(cometServer.prototype.getUrl());
-
-        cometServer.prototype.socket.onopen = function() 
+        
+        function initSocket(socket)
         {
-            if(thisObj.LogLevel) console.log("WS Соединение установлено.");
-
-            if(thisObj.send_msg_subscription === false) thisObj.send_curent_subscription(); // Подписываемся на то что были подписаны до разрыва соединения
-
-            // Отправка сообщений из очереди.
-            thisObj.send_msg_from_queue();
-
-            if(thisObj.options.nostat !== true)
+            socket.onopen = function() 
             {
-                setTimeout(function()
+                if(thisObj.LogLevel) console.log("WS Соединение установлено.");
+
+                if(thisObj.send_msg_subscription === false) thisObj.send_curent_subscription(); // Подписываемся на то что были подписаны до разрыва соединения
+
+                // Отправка сообщений из очереди.
+                thisObj.send_msg_from_queue();
+
+                if(thisObj.options.nostat !== true)
                 {
-                    if(thisObj.isSendStatisticsData)
+                    setTimeout(function()
                     {
-                        return;
+                        if(thisObj.isSendStatisticsData)
+                        {
+                            return;
+                        }
+
+                        thisObj.isSendStatisticsData = true;
+                        // Отправка данных по использованию сервиса
+                        cometServer.prototype.send_msg("statistics\n"+JSON.stringify({url:window.location.href, dev_id:thisObj.options.dev_id, version: thisObj.version}));
+                    }, 5000)
+                }
+            };
+
+            socket.onclose = function(event)
+            {
+                cometServer.prototype.in_conect_to_server = false;
+                if (event.wasClean || cometServer.prototype.in_abort === true)
+                {
+                    if(thisObj.LogLevel) console.log('WS Соединение закрыто чисто');
+                }
+                else
+                {
+                    if(thisObj.LogLevel) console.log('WS Обрыв соединения'); // например, "убит" процесс сервера
+                    socket.close();
+                    thisObj.web_socket_error++; // Увеличение колва ошибок вебсокетов
+
+                    /*if(thisObj.web_socket_error_timeOut_id !== undefined )
+                    {
+                        clearTimeout(thisObj.web_socket_error_timeOut_id)
                     }
 
-                    thisObj.isSendStatisticsData = true;
-                    // Отправка данных по использованию сервиса
-                    thisObj.socket.send("statistics\n"+JSON.stringify({url:window.location.href, dev_id:thisObj.options.dev_id, version: thisObj.version}));
-                }, 5000)
-            }
-        };
+                    // Если ошибки происходят редко то обнулим сщётчик
+                    thisObj.web_socket_error_timeOut_id = setTimeout(function()
+                    {
+                        thisObj.web_socket_error_timeOut_id = undefined;
+                        thisObj.web_socket_error = 0;
+                    }, thisObj.time_to_reconect_on_error*2 )*/
 
-        cometServer.prototype.socket.onclose = function(event)
-        {
-            thisObj.in_conect_to_server = false;
-            if (event.wasClean || cometServer.prototype.in_abort === true)
-            {
-              if(thisObj.LogLevel) console.log('WS Соединение закрыто чисто');
-            }
-            else
-            {
-              if(thisObj.LogLevel) console.log('WS Обрыв соединения'); // например, "убит" процесс сервера
-              thisObj.socket.close();
-              thisObj.web_socket_error++; // Увеличение колва ошибок вебсокетов
 
-              if(thisObj.web_socket_error_timeOut_id !== undefined )
-              {
-                  clearTimeout(thisObj.web_socket_error_timeOut_id)
-              }
 
-              // Если ошибки происходят редко то обнулим сщётчик
-              thisObj.web_socket_error_timeOut_id = setTimeout(function()
-              {
-                  thisObj.web_socket_error_timeOut_id = undefined;
-                  thisObj.web_socket_error = 0;
-              }, thisObj.web_socket_error_timeOut )
+                    if( thisObj.web_socket_error > 2 && thisObj.web_socket_success !== true && !thisObj.isUseWss())
+                    {
+                        // Если за время thisObj.web_socket_error_timeOut произошло более 2 ошибок вебсокетов то принудительно включим wss
+                        thisObj.UseWss(true) 
+                        console.warn("Произошло более 2 ошибок вебсокетов включаем шифрование"); // Не делать этого если уже были переданы данные по вебсокету
+                    }
+                    /*else if( thisObj.web_socket_error > 3 && thisObj.web_socket_success !== true && thisObj.isUseWss())
+                    {
+                        // Если за время thisObj.web_socket_error_timeOut произошло более 3 ошибок вебсокетов то перейдём на long poling
+                        // Такое возможно если человек использует прокси который не поддерживает вебсокеты
+                        // Переход произойдёт примерно через 3 секунды работы
+                        thisObj.UseWebSocket(false);
+                        thisObj.UseWss();
+                        console.error("Произошло более 3 ошибок вебсокетов то перейдём на long poling"); // Не делать этого если уже были переданы данные по вебсокету
+                    }*/
+                    else if(thisObj.web_socket_error > 5)
+                    {
+                        // Если 3 ошибки подряд то увеличим время до следующего переподключения
+                        thisObj.time_to_reconect_on_error *= 3;
+                    }
+                    else if(thisObj.web_socket_error > 3)
+                    {
+                        // Если 5 ошибок подряд то ещё больше увеличим время до следующего переподключения
+                        thisObj.time_to_reconect_on_error += 2000;
+                    }
 
-              if( thisObj.web_socket_error > 10 && thisObj.web_socket_success !== true)
-              {
-                  // Если за время thisObj.web_socket_error_timeOut произошло более 10 ошибок вебсокетов то перейдём на long poling
-                  // Такое возможно если человек использует прокси который не поддерживает вебсокеты
-                  // Переход произойдёт примерно через 3 секунды работы
-                  thisObj.UseWebSocket(false);
-                  thisObj.time_to_reconect_on_error = 1000;
-                  console.error("Произошло более 10 ошибок вебсокетов то перейдём на long poling"); // Не делать этого если уже были переданы данные по вебсокету
-              }
-              else if(thisObj.web_socket_error > 9)
-              {
-                  thisObj.time_to_reconect_on_error = 2000;
-              }
-
-              setTimeout(function(){ thisObj.conect_to_server(); }, thisObj.time_to_reconect_on_error );
-
-            }
-            if(thisObj.LogLevel) console.log('WS Код: ' + event.code + ' причина: ' + event.reason);
-        };
-
-        cometServer.prototype.socket.onmessage = function(event)
-        {
-            thisObj.web_socket_success = true;
-            if(thisObj.LogLevel > 1) console.log("WS Входящие сообщение:"+event.data);
-            var lineArray = event.data.replace(/^\s+|\s+$/, '').split("\n");
-            for(var i in lineArray)
-            {
-                var rj = {};
-                try{
-                    rj = JSON.parse(lineArray[i]);
+                    if(thisObj.web_socket_error === 0)
+                    {
+                        // Если это первый обрыв соединения подряд то переподключаемся быстрее
+                        setTimeout(function()
+                        {
+                            thisObj.conect_to_server();
+                        }, cometServer.prototype.time_to_reconect_on_close );
+                    }
+                    else
+                    {
+                        // Если это не первый обрыв соединения подряд то переподключаемся не сразу 
+                        setTimeout(function()
+                        {
+                            thisObj.conect_to_server();
+                        }, thisObj.time_to_reconect_on_error );
+                    }
                 }
-                catch (failed)
+                if(thisObj.LogLevel) console.log('WS Код: ' + event.code + ' причина: ' + event.reason);
+            };
+
+            socket.onmessage = function(event)
+            { 
+                thisObj.web_socket_success = true;
+                thisObj.web_socket_error = 0;               // Если успешно подключились сбрасываем сщётчик ошибок
+                thisObj.time_to_reconect_on_error = 1000;   // Если успешно подключились сбрасываем сщётчик ошибок
+                
+                if(thisObj.LogLevel > 1) console.log("WS Входящие сообщение:"+event.data);
+                var lineArray = event.data.replace(/^\s+|\s+$/, '').split("\n");
+                for(var i in lineArray)
                 {
-                    if(thisObj.LogLevel) console.error(failed);
-                    continue;
+                    var rj = {};
+                    try{
+                        rj = JSON.parse(lineArray[i]);
+                    }
+                    catch (failed)
+                    {
+                        if(thisObj.LogLevel) console.error(failed);
+                        continue;
+                    }
+
+                    thisObj.msg_cultivate(rj);
                 }
+            };
 
-                thisObj.msg_cultivate(rj);
-            }
-        };
-
-        cometServer.prototype.socket.onerror = function(error) 
+            socket.onerror = function(error) 
+            {
+                thisObj.in_conect_to_server = false;
+                if(thisObj.LogLevel) console.log("Ошибка " + error.message);
+            };
+        }
+        
+        cometServer.prototype.socketArray = []
+        for(var i in cometServer.prototype.options.nodeArray )
         {
-            thisObj.in_conect_to_server = false;
-            if(thisObj.LogLevel) console.log("Ошибка " + error.message);
-        };
+            var node = cometServer.prototype.options.nodeArray[i]
+            var socket = new WebSocket(cometServer.prototype.getUrl(node));
+            
+            cometServer.prototype.socketArray.push(socket)
+            initSocket(socket);
+        }
     }
     else
     {
