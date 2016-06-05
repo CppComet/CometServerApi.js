@@ -90,6 +90,7 @@ comet_server_signal.disconnect = function(slot_name, signal_name)
  * В добавок ретранслирует сигнал в дочернии iframe если они есть и в родительское окно если оно есть
  * @param signal_name Имя сигнала
  * @param param Параметры переданые слоту при вызове в втором аргументе
+ * @param SignalNotFromThisTab Если false то значит это сигнал пришёл из другой вкладки
  */
 comet_server_signal.emit = function(signal_name, param, SignalNotFromThisTab)
 {
@@ -190,7 +191,7 @@ var cometServer = function(opt)
         {
             cometServer.prototype.options = {};
         }
-        
+
         for(var key in opt)
         {
             cometServer.prototype.options[key] = opt[key];
@@ -202,7 +203,7 @@ var cometServer = function(opt)
 /**
  * @private
  */
-cometServer.prototype.version = "3.01";
+cometServer.prototype.version = "3.02";
 
 /**
  * @private
@@ -213,7 +214,7 @@ cometServer.prototype.options = {};
  * @private
  */
 cometServer.prototype.options.nodeName = "app.comet-server.ru";
-cometServer.prototype.options.nodeArray = ["app.comet-server.ru"]// ["n1-app.comet.su", "n2-app.comet.su"]; // 
+cometServer.prototype.options.nodeArray = ["app.comet-server.ru"]// ["n1-app.comet.su", "n2-app.comet.su"]; //
 
 /*comet.su
 n1-app.comet.su
@@ -267,7 +268,7 @@ cometServer.prototype.time_to_reconect_on_close = 100;
  * @private
  */
 cometServer.prototype.in_abort = false;
- 
+
 /**
  * @private
  */
@@ -325,7 +326,7 @@ cometServer.prototype.authorized_status;
 /**
  * @private
  */
-cometServer.prototype.socket; 
+cometServer.prototype.socket;
 cometServer.prototype.socketArray = [];
 
 /**
@@ -587,7 +588,7 @@ cometServer.prototype.subscription_slot_array = [];
  * Отписывает функцию от получения сообщений
  * @public
  * @param {string|undefined} sigId Идентификатор подписки, возвращается функцией subscription в момент подписки или если sigId === undefined то отпишет от всех подписок сразу.
- * 
+ *
  */
 cometServer.prototype.unsubscription = function(sigId)
 {
@@ -596,12 +597,12 @@ cometServer.prototype.unsubscription = function(sigId)
         for(var i in cometServer.prototype.subscription_slot_array)
         {
             var val = cometServer.prototype.subscription_slot_array[i];
-            
+
             var sigName = val.replace(/^(.*)&&.*$/, "$1");
             var slotName = val.replace(/^.*&&(.*)$/, "$1");
             comet_server_signal().disconnect(slotName, sigName);
         }
-        
+
         cometServer.prototype.subscription_slot_array = []
         return true;
     }
@@ -609,7 +610,7 @@ cometServer.prototype.unsubscription = function(sigId)
     {
         return false;
     }
-    
+
     var sigName = sigId.replace(/^(.*)&&.*$/, "$1");
     var slotName = sigId.replace(/^.*&&(.*)$/, "$1");
     return comet_server_signal().disconnect(slotName, sigName);
@@ -716,7 +717,7 @@ cometServer.prototype.subscription = function(name, callback)
     }
 
     var sigId = thisObj.subscription_callBack(name, callback);
-    cometServer.prototype.subscription_slot_array.push(sigId); 
+    cometServer.prototype.subscription_slot_array.push(sigId);
 
     if( name === "comet_server_msg" )
     {
@@ -733,7 +734,7 @@ cometServer.prototype.subscription = function(name, callback)
     for(var i in cometServer.prototype.subscription_array)
     {
         if(cometServer.prototype.subscription_array[i] === name )
-        { 
+        {
             return sigId;
         }
     }
@@ -741,12 +742,12 @@ cometServer.prototype.subscription = function(name, callback)
     cometServer.prototype.subscription_array[cometServer.prototype.subscription_array.length] = name;
 
 
-    if(cometServer.prototype.is_master === undefined)
+    if(cometServer.prototype.isMaster() === undefined)
     {
         // Статус ещё не определён
         cometServer.prototype.add_msg_to_queue("subscription\n"+cometServer.prototype.subscription_array.join("\n"))
     }
-    else if(cometServer.prototype.is_master)
+    else if(cometServer.prototype.isMaster())
     {
         // Мы мастер вкладка
         if(cometServer.prototype.LogLevel) console.log('add subscription:'+name)
@@ -806,9 +807,9 @@ cometServer.prototype.getUrl = function(nodename)
 {
     if(nodename === undefined)
     {
-       nodename = cometServer.prototype.options.nodeName 
+       nodename = cometServer.prototype.options.nodeName
     }
-    
+
     if(cometServer.prototype.UseWebSocket() === true)
     {
         return 'ws'+cometServer.prototype.protocol+'://'+nodename+'/ws/sesion='+cometServer.prototype.options.user_key+'&myid='+cometServer.prototype.options.user_id+'&devid='+cometServer.prototype.options.dev_id+"&v="+cometServer.prototype.version+"&api=js";
@@ -854,7 +855,7 @@ cometServer.prototype.UseWss = function(use)
     {
         cometServer.prototype.protocol = ""
     }
-    
+
     return cometServer.prototype.protocol === "s"
 }
 
@@ -925,7 +926,7 @@ cometServer.prototype.start = function(opt, callBack)
 
 cometServer.prototype.stop = function()
 {
-    if(cometServer.prototype.is_master)
+    if(cometServer.prototype.isMaster())
     {
         cometServer.prototype.in_abort = true;
 
@@ -937,7 +938,7 @@ cometServer.prototype.stop = function()
                 if(cometServer.prototype.socketArray[i])
                 {
                     cometServer.prototype.socketArray[i].close();
-                } 
+                }
             }
         }
         else
@@ -968,7 +969,7 @@ cometServer.prototype.restart = function(opt)
         }
     }
 
-    if(cometServer.prototype.is_master)
+    if(cometServer.prototype.isMaster())
     {
         if(cometServer.prototype.restart_time_id !== false)
         {
@@ -984,14 +985,14 @@ cometServer.prototype.restart = function(opt)
                 if(cometServer.prototype.socketArray[i])
                 {
                     cometServer.prototype.socketArray[i].close();
-                } 
+                }
             }
         }
         else
         {
             cometServer.prototype.request.abort();
         }
- 
+
         // Таймер задержки рестарта чтоб не выполнять рестарт чаще раза в секунду.
         cometServer.prototype.restart_time_id = setTimeout(function()
         {
@@ -1004,6 +1005,96 @@ cometServer.prototype.restart = function(opt)
         comet_server_signal().send_emit('comet_msg_slave_signal_restart', opt);
     }
 }
+ 
+cometServer.prototype.setAsSlave = function(callback)
+{ 
+    if(callback === undefined)
+    {
+        callback = function(){};
+    }
+
+    var thisObj = cometServer.prototype;
+    var time_id = false;
+    var last_time_id = false;
+
+    // Подписка колбека который будет выполнен когда мы получим статус slave вкладки
+    comet_server_signal().connect("slot_comet_msg_set_as_slave",'comet_msg_set_as_slave', function()
+    { 
+        if(cometServer.prototype.LogLevel)
+        {
+            console.log('comet_msg_set_as_slave: set is slave');
+        }
+        
+        // Отписываем этот колбек
+        comet_server_signal().disconnect("slot_comet_msg_set_as_slave", 'comet_msg_set_as_slave');
+
+        // Подписка для send_msg: Если мы станем slave вкладкой то все сообщения ожидающие в очереди отправим мастер вкладке.
+        thisObj.send_msg_from_queue();
+
+        // подключение на сигнал статуса авторизации от других вкладок
+        comet_server_signal().connect('__comet_set_authorized_slot', '__comet_authorized', function(param,arg)
+        {
+            if(thisObj.LogLevel) console.log([param,arg])
+            if(param == "undefined")
+            {
+                setTimeout(function()
+                {
+                    // Отправляем сигнал запрашивающий статус авторизации у мастер вкладки так как пришёл сигнал с неопределённым статусом
+                    comet_server_signal().send_emit('__comet_get_authorized_status');
+                }, 200)
+            }
+            thisObj.setAuthorized(param)
+        })
+
+        // Отправляем сигнал запрашивающий статус авторизации у мастер вкладки
+        comet_server_signal().send_emit('__comet_get_authorized_status');
+    });
+
+    // Подключаемся на уведомления от других вкладок о том что сервер работает, если за cometServer.prototype.start_timer милисекунд уведомление произойдёт то отменим поставленый ранее таймер
+    comet_server_signal().connect("comet_msg_conect",'comet_msg_master_signal', function()
+    {
+       if(time_id !== false) //  отменим поставленый ранее таймер если это ещё не сделано
+       {
+           clearTimeout( time_id );
+
+           time_id = false;
+           if(thisObj.LogLevel) console.log("Соединение с сервером отменено");
+
+           comet_server_signal().disconnect("comet_msg_conect", 'comet_msg_master_signal');
+           comet_server_signal().connect("comet_msg_conect_to_master_signal",'comet_msg_master_signal', function()
+           {
+               if(last_time_id !== false)
+               {
+                   clearTimeout( last_time_id );
+               }
+
+               // Создадим таймер, если этот таймер не будет отменён за cometServer.prototype.start_timer милисекунд то считаем себя мастер вкладкой
+               last_time_id = setTimeout(function()
+               {
+                  comet_server_signal().disconnect("comet_msg_conect_to_master_signal", 'comet_msg_master_signal');
+
+                  thisObj.in_try_conect = false;
+                  thisObj.conect_to_server();
+                  callback();
+               }, thisObj.start_timer );
+           })
+       }
+
+       if(thisObj.LogLevel) console.log('set is slave');
+       thisObj.is_master = false; // Укажем что мы явно не мастер вкладка переключив thisObj.is_master из undefined в false
+       comet_server_signal().emit('comet_msg_set_as_slave', "slave");
+    })
+
+    // Создадим таймер, если этот таймер не будет отменён за cometServer.prototype.start_timer милисекунд то считаем себя мастер вкладкой
+    time_id = setTimeout(function()
+    {
+       comet_server_signal().disconnect("comet_msg_conect", 'comet_msg_master_signal');
+
+       thisObj.in_try_conect = false;
+       thisObj.conect_to_server();
+       callback();
+    }, cometServer.prototype.start_timer )
+}
 
 /**
  * Устанавливает эту вкладку как мастер вкладку.
@@ -1015,43 +1106,94 @@ cometServer.prototype.setAsMaster = function()
     cometServer.prototype.is_master = true;
     if(cometServer.prototype.LogLevel) console.log("setAsMaster")
 
-    comet_server_signal().send_emit('comet_msg_master_signal')        //  для уведомления всех остальных вкладок о своём превосходстве
-    comet_server_signal().send_emit('comet_msg_new_master')           //  для уведомления всех что надо переподписатся @todo реализовать переподписку событий
-    setInterval(function()                                            // Поставим таймер для уведомления всех остальных вкладок о своём превосходстве
+    //  для уведомления всех остальных вкладок о своём превосходстве
+    comet_server_signal().send_emit('comet_msg_master_signal', {custom_id:cometServer.prototype.custom_id})        
+    comet_server_signal().send_emit('comet_msg_new_master')           // для уведомления всех что надо переподписатся @todo реализовать переподписку событий
+    masterSignalIntervalId = setInterval(function()                   // Поставим таймер для уведомления всех остальных вкладок о своём превосходстве
     {
-       comet_server_signal().send_emit('comet_msg_master_signal')
+        // Передаём идентификатор своей вкладки на тот случай если вдруг по ошибки ещё одна из вкладок возомнит себя мастером
+        // То та вкладка у кторой идентификатор меньше уступит право быть мастер вкладкой той вкладке у которой идентификатор больше
+        comet_server_signal().send_emit('comet_msg_master_signal', {custom_id:cometServer.prototype.custom_id})
     }, cometServer.prototype.start_timer/6);
+    
+    // Подписываемся на уведомления о том что кто то возомнил себя бастер вкладкой для того чтоб вовремя уладить конфликт двоевластия
+    // и не допустить установки более одного соединения с комет сервером, а если это уже произошло то хотябы отключить одно из них.
+    comet_server_signal().connect("comet_msg_master_detect", 'comet_msg_master_signal', function(event, signal_name, SignalNotFromThisTab)
+    { 
+        if(SignalNotFromThisTab && cometServer.prototype.LogLevel) 
+        {
+            console.error("Произошла колизия, образовалось две мастервкладки")
+        }
+        
+        if(SignalNotFromThisTab && event.custom_id > cometServer.prototype.custom_id)
+        {
+            if(cometServer.prototype.LogLevel) console.log("Уступаем власть, переходим в режим slave вкладки")
+            
+            // Идентификатор своей вкладки меньше чем был прислан в сигнале надо уступить право быть мастер вкладкой
+            
+            // Перестаём отправлять уведомления о том что мы мастер
+            clearInterval(masterSignalIntervalId);
+            
+            // Отписываем этот колбек
+            comet_server_signal().disconnect('comet_msg_master_detect', "comet_msg_master_signal")
+            
+            
+            // Отписываемся от всего за чем должена слидить мастервкладка
+            
+            // подключение на сигнал рестарта от других вкладок
+            comet_server_signal().disconnect('comet_master_tab', "comet_msg_slave_signal_restart")
+            
+            // подключение на сигнал остоновки от других вкладок
+            comet_server_signal().disconnect('comet_master_tab', "comet_msg_slave_signal_stop")
+            
+            // подключение на сигнал запуска от других вкладок
+            comet_server_signal().disconnect('comet_master_tab', "comet_msg_slave_signal_start")
+            
+            // подключение на сигнал переподписки от других вкладок
+            comet_server_signal().disconnect('comet_master_tab', "comet_msg_slave_add_subscription_and_restart")
+            
+            // подключение на сигнал отправки сообщений от других вкладок
+            comet_server_signal().disconnect('comet_master_tab', "comet_msg_slave_send_msg")
+            
+            // подключение на сигнал запроса статуса авторизации на комет сервере  от других вкладок
+            comet_server_signal().disconnect('comet_master_tab', "__comet_get_authorized_status")
+             
+            
+            cometServer.prototype.setAsSlave()
+        }
+    });
 
     // подключение на сигнал рестарта от других вкладок
-    comet_server_signal().connect('comet_msg_slave_signal_restart', function(p,arg) 
+    comet_server_signal().connect('comet_master_tab', 'comet_msg_slave_signal_restart', function(p,arg)
     {
         if(thisObj.LogLevel) console.log([p,arg])
         thisObj.restart(p)
     })
 
     // подключение на сигнал остоновки от других вкладок
-    comet_server_signal().connect('comet_msg_slave_signal_stop', function(p,arg)    
+    comet_server_signal().connect('comet_master_tab', 'comet_msg_slave_signal_stop', function(p,arg)
     {
         if(thisObj.LogLevel) console.log([p,arg])
         thisObj.stop()
     })
 
     // подключение на сигнал запуска от других вкладок
-    comet_server_signal().connect('comet_msg_slave_signal_start', function(p,arg)    
+    comet_server_signal().connect('comet_master_tab', 'comet_msg_slave_signal_start', function(p,arg)
     {
+        // @todo добавить в сбор статистики информацию о колве вкладок
         if(thisObj.LogLevel) console.log([p,arg])
         thisObj.start()
     })
 
     // подключение на сигнал переподписки от других вкладок
-    comet_server_signal().connect('comet_msg_slave_add_subscription_and_restart', function(p,arg)
+    comet_server_signal().connect('comet_master_tab', 'comet_msg_slave_add_subscription_and_restart', function(p,arg)
     {
         if(thisObj.LogLevel) console.log([p,arg])
         thisObj.subscription(p)
     })
 
     // подключение на сигнал отправки сообщений от других вкладок
-    comet_server_signal().connect('comet_msg_slave_send_msg', function(p,arg)
+    comet_server_signal().connect('comet_master_tab', 'comet_msg_slave_send_msg', function(p,arg)
     {
         if(thisObj.LogLevel) console.log([p,arg])
         thisObj.send_msg(p)
@@ -1061,7 +1203,7 @@ cometServer.prototype.setAsMaster = function()
     comet_server_signal().disconnect('__comet_set_authorized_slot', "__comet_authorized")
 
     // подключение на сигнал запроса статуса авторизации на комет сервере  от других вкладок
-    comet_server_signal().connect('__comet_get_authorized_status', function(p,arg)
+    comet_server_signal().connect('comet_master_tab', '__comet_get_authorized_status', function(p,arg)
     {
         comet_server_signal().send_emit("__comet_authorized", thisObj.isAuthorized())
     })
@@ -1175,7 +1317,7 @@ cometServer.prototype.msg_cultivate = function( msg )
     if(msg.event_name === undefined)
     {
         msg.data = cometServer.prototype.Base64.decode(msg.data)
-    } 
+    }
 
     try{
         if(cometServer.prototype.LogLevel) console.log(["msg", msg.data, "web_id:"+web_id]);
@@ -1272,18 +1414,18 @@ cometServer.prototype.socketArrayTest = function()
 {
     for(var i in cometServer.prototype.socketArray)
     {
-        var socket = cometServer.prototype.socketArray[i]; 
+        var socket = cometServer.prototype.socketArray[i];
         if(socket &&  socket.readyState === 1)
         {
             continue;
-        } 
+        }
         else
         {
             return false;
         }
     }
-    
-    return true; 
+
+    return true;
 }
 
 /**
@@ -1295,16 +1437,16 @@ cometServer.prototype.socketArraySend = function(data)
 {
     for(var i in cometServer.prototype.socketArray)
     {
-        var socket = cometServer.prototype.socketArray[i]; 
+        var socket = cometServer.prototype.socketArray[i];
         if(socket &&  socket.readyState === 1)
-        { 
+        {
             try
             {
                 socket.send(data);
-            } 
-            catch (ex) 
+            }
+            catch (ex)
             {
-                if(cometServer.prototype.LogLevel ) 
+                if(cometServer.prototype.LogLevel )
                 {
                     console.log("Не удалось отправить данные ", data, ex)
                     continue;
@@ -1313,7 +1455,7 @@ cometServer.prototype.socketArraySend = function(data)
             return true;
         }
     }
-    
+
     return false;
 }
 
@@ -1322,12 +1464,12 @@ cometServer.prototype.socketArraySend = function(data)
  * @private
  */
 cometServer.prototype.send_msg_from_queue = function()
-{ 
-    if(cometServer.prototype.is_master === undefined)
+{
+    if(cometServer.prototype.isMaster() === undefined)
     {
         return false;
     }
-    else if(cometServer.prototype.is_master === false)
+    else if(cometServer.prototype.isMaster() === false)
     {
         // Отправка запроса на отправку сообщения мастервкладке
         if(cometServer.prototype.send_msg_subscription !== false)
@@ -1346,7 +1488,7 @@ cometServer.prototype.send_msg_from_queue = function()
         }
         return true;
     }
-    else if(cometServer.prototype.is_master)
+    else if(cometServer.prototype.isMaster())
     {
         if(!cometServer.prototype.UseWebSocket())
         {
@@ -1414,16 +1556,16 @@ cometServer.prototype.add_msg_to_queue = function(msg)
  */
 cometServer.prototype.send_msg = function(msg)
 {
-    if(cometServer.prototype.is_master === undefined)
+    if(cometServer.prototype.isMaster() === undefined)
     {
         cometServer.prototype.add_msg_to_queue(msg);
         return false;
     }
-    else if(cometServer.prototype.is_master === false)
+    else if(cometServer.prototype.isMaster() === false)
     {
         comet_server_signal().send_emit('comet_msg_slave_send_msg',msg);
     }
-    else if(cometServer.prototype.is_master)
+    else if(cometServer.prototype.isMaster())
     {
         if(!cometServer.prototype.UseWebSocket())
         {
@@ -1487,8 +1629,8 @@ cometServer.prototype.web_pipe_send = function(pipe_name, event_name, msg)
  * @returns {Boolean}
  */
 cometServer.prototype.sendStatistics = function(plugin_name, plugin_version, plugin_data)
-{  
-    if(cometServer.prototype.LogLevel) console.log(["sendStatistics", plugin_name, plugin_version, plugin_data]); 
+{
+    if(cometServer.prototype.LogLevel) console.log(["sendStatistics", plugin_name, plugin_version, plugin_data]);
     return cometServer.prototype.send_msg("statistics\n"+JSON.stringify(
             {
                 url:window.location.href,
@@ -1515,7 +1657,7 @@ cometServer.prototype.get_pipe_log = function(pipe_name, callBack)
     {
         return false;
     }
- 
+
     if(callBack !== undefined)
     {
         var marker = cometServer.prototype.getCustomString();
@@ -1561,7 +1703,7 @@ cometServer.prototype.conect_to_server = function()
 
     if(cometServer.prototype.LogLevel) console.log("Соединение с сервером");
     cometServer.prototype.in_conect_to_server = true;
-    if(!cometServer.prototype.is_master) cometServer.prototype.setAsMaster();
+    if(!cometServer.prototype.isMaster()) cometServer.prototype.setAsMaster();
 
     if(cometServer.prototype.hasCriticalError)
     {
@@ -1571,10 +1713,10 @@ cometServer.prototype.conect_to_server = function()
 
     if(cometServer.prototype.UseWebSocket())
     {
-        
+
         function initSocket(socket)
         {
-            socket.onopen = function() 
+            socket.onopen = function()
             {
                 if(thisObj.LogLevel) console.log("WS Соединение установлено.");
 
@@ -1629,7 +1771,7 @@ cometServer.prototype.conect_to_server = function()
                     if( thisObj.web_socket_error > 2 && thisObj.web_socket_success !== true && !thisObj.isUseWss())
                     {
                         // Если за время thisObj.web_socket_error_timeOut произошло более 2 ошибок вебсокетов то принудительно включим wss
-                        thisObj.UseWss(true) 
+                        thisObj.UseWss(true)
                         console.warn("Произошло более 2 ошибок вебсокетов включаем шифрование"); // Не делать этого если уже были переданы данные по вебсокету
                     }
                     /*else if( thisObj.web_socket_error > 3 && thisObj.web_socket_success !== true && thisObj.isUseWss())
@@ -1662,7 +1804,7 @@ cometServer.prototype.conect_to_server = function()
                     }
                     else
                     {
-                        // Если это не первый обрыв соединения подряд то переподключаемся не сразу 
+                        // Если это не первый обрыв соединения подряд то переподключаемся не сразу
                         setTimeout(function()
                         {
                             thisObj.conect_to_server();
@@ -1673,11 +1815,11 @@ cometServer.prototype.conect_to_server = function()
             };
 
             socket.onmessage = function(event)
-            { 
+            {
                 thisObj.web_socket_success = true;
                 thisObj.web_socket_error = 0;               // Если успешно подключились сбрасываем сщётчик ошибок
                 thisObj.time_to_reconect_on_error = 1000;   // Если успешно подключились сбрасываем сщётчик ошибок
-                
+
                 if(thisObj.LogLevel > 1) console.log("WS Входящие сообщение:"+event.data);
                 var lineArray = event.data.replace(/^\s+|\s+$/, '').split("\n");
                 for(var i in lineArray)
@@ -1696,19 +1838,19 @@ cometServer.prototype.conect_to_server = function()
                 }
             };
 
-            socket.onerror = function(error) 
+            socket.onerror = function(error)
             {
                 thisObj.in_conect_to_server = false;
                 if(thisObj.LogLevel) console.log("Ошибка " + error.message);
             };
         }
-        
+
         cometServer.prototype.socketArray = []
         for(var i in cometServer.prototype.options.nodeArray )
         {
             var node = cometServer.prototype.options.nodeArray[i]
             var socket = new WebSocket(cometServer.prototype.getUrl(node));
-            
+
             cometServer.prototype.socketArray.push(socket)
             initSocket(socket);
         }
@@ -1796,9 +1938,8 @@ cometServer.prototype.conect_to_server = function()
  * @private
  */
 cometServer.prototype.conect = function(callback)
-{
-    var thisObj = cometServer.prototype;
-    if(cometServer.prototype.is_master)
+{ 
+    if(cometServer.prototype.isMaster())
     {
         return cometServer.prototype.conect_to_server();
     }
@@ -1810,90 +1951,10 @@ cometServer.prototype.conect = function(callback)
         return false;
     }
 
-    cometServer.prototype.in_try_conect = true;
-
-    if(callback === undefined)
-    {
-        callback = function(){};
-    }
-
+    cometServer.prototype.in_try_conect = true; 
     if(cometServer.prototype.LogLevel) console.log("Попыдка соединения с сервером");
 
-
-    var time_id = false;
-    var last_time_id = false;
-
-    comet_server_signal().connect("slot_comet_msg_set_as_slave",'comet_msg_set_as_slave', function()
-    {
-        // Подписка для send_msg: Если мы станем slave вкладкой то все сообщения ожидающие в очереди отправим мастер вкладке.
-        //comet_server_signal().disconnect("slot_comet_msg_set_as_slave", 'comet_msg_set_as_slave');
-
-        if(cometServer.prototype.LogLevel) console.log('comet_msg_set_as_slave: set is slave');
-        thisObj.send_msg_from_queue();
-
-        // подключение на сигнал статуса авторизации от других вкладок
-        comet_server_signal().connect('__comet_set_authorized_slot', '__comet_authorized', function(param,arg)
-        {
-            if(thisObj.LogLevel) console.log([param,arg])
-            if(param == "undefined")
-            {
-                setTimeout(function()
-                {
-                    // Отправляем сигнал запрашивающий статус авторизации у мастер вкладки так как пришёл сигнал с неопределённым статусом
-                    comet_server_signal().send_emit('__comet_get_authorized_status');
-                }, 200)
-            }
-            thisObj.setAuthorized(param)
-        })
-
-        // Отправляем сигнал запрашивающий статус авторизации у мастер вкладки
-        comet_server_signal().send_emit('__comet_get_authorized_status');
-    });
-
-    // Подключаемся на уведомления от других вкладок о том что сервер работает, если за cometServer.prototype.start_timer милисекунд уведомление произойдёт то отменим поставленый ранее таймер
-    comet_server_signal().connect("comet_msg_conect",'comet_msg_master_signal', function()
-    {
-       if(time_id !== false) //  отменим поставленый ранее таймер если это ещё не сделано
-       {
-           clearTimeout( time_id );
-
-           time_id = false;
-           if(thisObj.LogLevel) console.log("Соединение с сервером отменено");
-
-           comet_server_signal().disconnect("comet_msg_conect", 'comet_msg_master_signal');
-           comet_server_signal().connect("comet_msg_conect_to_master_signal",'comet_msg_master_signal', function()
-           {
-               if(last_time_id !== false)
-               {
-                   clearTimeout( last_time_id );
-               }
-
-               // Создадим таймер, если этот таймер не будет отменён за cometServer.prototype.start_timer милисекунд то считаем себя мастер вкладкой
-               last_time_id = setTimeout(function()
-               {
-                  comet_server_signal().disconnect("comet_msg_conect_to_master_signal", 'comet_msg_master_signal');
-
-                  thisObj.in_try_conect = false;
-                  thisObj.conect_to_server();
-                  callback();
-               }, thisObj.start_timer );
-           })
-       }
-
-       if(thisObj.LogLevel) console.log('set is slave');
-       thisObj.is_master = false; // Укажем что мы явно не мастер вкладка переключив thisObj.is_master из undefined в false
-       comet_server_signal().emit('comet_msg_set_as_slave', "slave");
-    })
-
-    // Создадим таймер, если этот таймер не будет отменён за cometServer.prototype.start_timer милисекунд то считаем себя мастер вкладкой
-    time_id = setTimeout(function()
-    {
-       comet_server_signal().disconnect("comet_msg_conect", 'comet_msg_master_signal');
-
-       thisObj.in_try_conect = false;
-       thisObj.conect_to_server();
-       callback();
-    }, cometServer.prototype.start_timer )
+    cometServer.prototype.setAsSlave(callback)
 }
 
 /**
@@ -1902,14 +1963,12 @@ cometServer.prototype.conect = function(callback)
  */
 var cometApi = new cometServer();
 
- 
+
 /**
  * @return cometServer
  */
 function CometServer()
-{ 
+{
     return cometApi;
 }
-
-
 
