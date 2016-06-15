@@ -203,7 +203,7 @@ var cometServer = function(opt)
 /**
  * @private
  */
-cometServer.prototype.version = "3.05";
+cometServer.prototype.version = "3.06";
 
 /**
  * @private
@@ -215,13 +215,7 @@ cometServer.prototype.options = {};
  */
 cometServer.prototype.options.nodeName = "app.comet-server.ru";
 cometServer.prototype.options.nodeArray = ["app.comet-server.ru"]// ["n1-app.comet.su", "n2-app.comet.su"]; //
-
-/*comet.su
-n1-app.comet.su
-n2-app.comet.su
-n3-app.comet.su
-n4-app.comet.su*/
-
+ 
 /**
  * @private
  */
@@ -1449,7 +1443,7 @@ cometServer.prototype.errorReportSend = function()
     }
     
     var time = new Date();
-    if(window.localStorage["errorReportSendTime"] || parseInt(window.localStorage["errorReportSendTime"]) < time.getTime() - 3600*1000*1)
+    if(window.localStorage["errorReportSendTime"] && parseInt(window.localStorage["errorReportSendTime"]) < time.getTime() - 3600*1000*1)
     {
         // Не отправлять отчёты чаще чем раз в час
         return;
@@ -1935,6 +1929,10 @@ cometServer.prototype.conect_to_server = function()
         for(var i in cometServer.prototype.options.nodeArray )
         {
             var node = cometServer.prototype.options.nodeArray[i]
+            if(typeof node != "string")
+            {
+                continue;
+            }
             var socket = new WebSocket(cometServer.prototype.getUrl(node));
 
             cometServer.prototype.socketArray.push(socket)
