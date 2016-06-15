@@ -203,7 +203,7 @@ var cometServer = function(opt)
 /**
  * @private
  */
-cometServer.prototype.version = "3.02";
+cometServer.prototype.version = "3.05";
 
 /**
  * @private
@@ -1428,6 +1428,79 @@ cometServer.prototype.socketArrayTest = function()
     return true;
 }
 
+
+cometServer.prototype.messageHistory = []
+cometServer.prototype.isSendErrorReport = false
+
+/**
+ * Отправляет отчёты об ошибках на сервер
+ * Используется для отладки и автоматизированого тестирования сервера на реальных данных, а не синтетических тестовых наборах
+ */
+cometServer.prototype.errorReportSend = function()
+{
+    if(cometServer.prototype.messageHistory.length <=2)
+    {
+        return;
+    }
+    
+    if(cometServer.prototype.isUseWss())
+    {
+        return;
+    }
+    
+    var time = new Date();
+    if(window.localStorage["errorReportSendTime"] || parseInt(window.localStorage["errorReportSendTime"]) < time.getTime() - 3600*1000*1)
+    {
+        // Не отправлять отчёты чаще чем раз в час
+        return;
+    }
+    
+    if(cometServer.prototype.isSendErrorReport)
+    {
+        return;
+    }
+    
+    cometServer.prototype.isSendErrorReport = true;
+    
+    window.localStorage["errorReportSendTime"] = time.getTime()
+    
+    setTimeout(function()
+    {
+        var reportData = {
+            messageHistory: cometServer.prototype.messageHistory,
+            options: cometServer.prototype.options 
+        }
+
+        var ajaxRequest = undefined;
+        try {
+            ajaxRequest = new XMLHttpRequest();
+        } catch (trymicrosoft) {
+            try {
+                ajaxRequest = new ActiveXObject("Msxml2.XMLHTTP");
+            } catch (othermicrosoft) {
+                try {
+                    ajaxRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                } catch (failed) {
+                    ajaxRequest = false;
+                }
+            }
+        }
+
+        if(!ajaxRequest)
+        {
+            return;
+        }
+        
+         
+        ajaxRequest.open("POST", "http://comet-server.com/index.php?cultivate=technicalReports.errorReport", true);
+        ajaxRequest.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        ajaxRequest.send("reportData="+JSON.stringify(reportData)+"&version"+encodeURIComponent(cometServer.prototype.version)+"&dev_id="+cometServer.prototype.options.dev_id); // Именно здесь отправляются данные
+    }, Math.floor(Math.random()*1000*30))// Разброс в минуту чтоб не отправлять запросы от многих клиентов единовременно
+    
+    return true;
+}
+
+
 /**
  * Отправляет данные по вебсокету (по первому из списка, и если он не доступен то по второму.)
  * @param {string} data
@@ -1442,6 +1515,12 @@ cometServer.prototype.socketArraySend = function(data)
         {
             try
             {
+                if(cometServer.prototype.messageHistory.length < 1000)
+                {
+                    var now = new Date(); 
+                    cometServer.prototype.messageHistory.push({data:data, time:now.getTime()})
+                }
+                
                 socket.send(data);
             }
             catch (ex)
@@ -1804,6 +1883,12 @@ cometServer.prototype.conect_to_server = function()
                     }
                     else
                     {
+                        // Если это не первый обрыв соединения подряд но данные уже отправлялись то отправляем отчёт об ошибке
+                        if(thisObj.web_socket_success == true)
+                        {
+                            cometServer.prototype.errorReportSend();
+                        }
+                        
                         // Если это не первый обрыв соединения подряд то переподключаемся не сразу
                         setTimeout(function()
                         {
@@ -1842,6 +1927,7 @@ cometServer.prototype.conect_to_server = function()
             {
                 thisObj.in_conect_to_server = false;
                 if(thisObj.LogLevel) console.log("Ошибка " + error.message);
+                
             };
         }
 
