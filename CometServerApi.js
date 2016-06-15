@@ -101,10 +101,13 @@ comet_server_signal.emit = function(signal_name, param, SignalNotFromThisTab)
     else
     {
         if(comet_server_signal.debug) console.log("Сигнал " + signal_name + " подписаны слоты")
-        for (var slot in comet_server_signal.slotArray[signal_name])
-        {
-            if(comet_server_signal.slotArray[signal_name][slot] !== undefined)
-            comet_server_signal.slotArray[signal_name][slot](param,signal_name, SignalNotFromThisTab === true)
+        var obj = comet_server_signal.slotArray[signal_name];
+        for (var slot in obj)
+        { 
+            if( obj.hasOwnProperty(slot) &&  obj[slot] !== undefined)
+            {
+                obj[slot](param,signal_name, SignalNotFromThisTab === true)
+            }
         }
 
     }
@@ -194,6 +197,10 @@ var cometServer = function(opt)
 
         for(var key in opt)
         {
+            if(!opt.hasOwnProperty(key))
+            {
+                continue;
+            }
             cometServer.prototype.options[key] = opt[key];
         }
     }
@@ -203,7 +210,7 @@ var cometServer = function(opt)
 /**
  * @private
  */
-cometServer.prototype.version = "3.07";
+cometServer.prototype.version = "3.08";
 
 /**
  * @private
@@ -588,7 +595,7 @@ cometServer.prototype.unsubscription = function(sigId)
 {
     if(sigId === undefined)
     {
-        for(var i in cometServer.prototype.subscription_slot_array)
+        for(var i = 0; i < cometServer.prototype.subscription_slot_array.length; i++)
         {
             var val = cometServer.prototype.subscription_slot_array[i];
 
@@ -653,8 +660,8 @@ cometServer.prototype.subscription = function(name, callback)
     var nameArray = name.split("\n");
     if(nameArray.length > 1)
     {
-        // Подписка на массив каналов без передачи колбека имеет смысл в том случаии когда это происходит по инициативе из другой вкладки.
-        for(var i in nameArray)
+        // Подписка на массив каналов без передачи колбека имеет смысл в том случаии когда это происходит по инициативе из другой вкладки. 
+        for(var i = 0; i < nameArray.length; i++)
         {
             cometServer.prototype.subscription(nameArray[i], callback);
         }
@@ -724,8 +731,8 @@ cometServer.prototype.subscription = function(name, callback)
         var res = cometServer.prototype.reg_exp.exec(name);
         name = res[1];
     }
-
-    for(var i in cometServer.prototype.subscription_array)
+ 
+    for(var i = 0; i < cometServer.prototype.subscription_array.length; i++)
     {
         if(cometServer.prototype.subscription_array[i] === name )
         {
@@ -872,6 +879,10 @@ cometServer.prototype.start = function(opt, callBack)
     {
         for(var key in opt)
         {
+            if(!opt.hasOwnProperty(key))
+            {
+                continue;
+            }
             cometServer.prototype.options[key] = opt[key];
         }
     }
@@ -926,8 +937,8 @@ cometServer.prototype.stop = function()
 
         if(cometServer.prototype.UseWebSocket())
         {
-            //cometServer.prototype.socket.close();
-            for(var i in cometServer.prototype.socketArray)
+            //cometServer.prototype.socket.close(); 
+            for(var i = 0; i < cometServer.prototype.socketArray.length; i++)
             {
                 if(cometServer.prototype.socketArray[i])
                 {
@@ -959,6 +970,10 @@ cometServer.prototype.restart = function(opt)
     {
         for(var key in opt)
         {
+            if(!opt.hasOwnProperty(key))
+            {
+                continue;
+            }
             cometServer.prototype.options[key] = opt[key];
         }
     }
@@ -973,8 +988,8 @@ cometServer.prototype.restart = function(opt)
         cometServer.prototype.in_abort = true;
         if(cometServer.prototype.UseWebSocket())
         {
-            //cometServer.prototype.socket.close();
-            for(var i in cometServer.prototype.socketArray)
+            //cometServer.prototype.socket.close(); 
+            for(var i = 0; i < cometServer.prototype.socketArray.length; i++)
             {
                 if(cometServer.prototype.socketArray[i])
                 {
@@ -1398,15 +1413,14 @@ cometServer.prototype.msg_cultivate = function( msg )
     comet_server_signal().send_emit("comet_server_msg", result_msg);
     return 1;
 }
-
-
+ 
 /**
  * Вернёт true только если все соединения установлены и активны
  * @returns {Boolean}
  */
 cometServer.prototype.socketArrayTest = function()
 {
-    for(var i in cometServer.prototype.socketArray)
+    for(var i = 0; i < cometServer.prototype.socketArray.length; i++)
     {
         var socket = cometServer.prototype.socketArray[i];
         if(socket &&  socket.readyState === 1)
@@ -1502,8 +1516,8 @@ cometServer.prototype.errorReportSend = function()
  */
 cometServer.prototype.socketArraySend = function(data)
 {
-    for(var i in cometServer.prototype.socketArray)
-    {
+    for(var i = 0; i < cometServer.prototype.socketArray.length; i++)
+    {  
         var socket = cometServer.prototype.socketArray[i];
         if(socket &&  socket.readyState === 1)
         {
@@ -1553,8 +1567,8 @@ cometServer.prototype.send_msg_from_queue = function()
 
         if(cometServer.prototype.send_msg_queue.length > 0)
         {
-            for(var i in cometServer.prototype.send_msg_queue)
-            {
+            for(var i = 0; i < cometServer.prototype.send_msg_queue.length; i++) 
+            {  
                 comet_server_signal().send_emit('comet_msg_slave_send_msg',cometServer.prototype.send_msg_queue[i]);
             }
             cometServer.prototype.send_msg_queue = []
@@ -1581,8 +1595,8 @@ cometServer.prototype.send_msg_from_queue = function()
             {
                 var j = 10;
                 // Отправляет сообщения из очереди не сразу а с 20мс интервалом.
-                for(var i in cometServer.prototype.send_msg_queue)
-                {
+                for(var i = 0; i < cometServer.prototype.send_msg_queue.length; i++) 
+                { 
                     j+= 20;
 
                     // Потом убрать setTimeout
@@ -1901,8 +1915,8 @@ cometServer.prototype.conect_to_server = function()
 
                 if(thisObj.LogLevel > 1) console.log("WS Входящие сообщение:"+event.data);
                 var lineArray = event.data.replace(/^\s+|\s+$/, '').split("\n");
-                for(var i in lineArray)
-                {
+                for(var i = 0; i < lineArray.length; i++)  
+                { 
                     var rj = {};
                     try{
                         rj = JSON.parse(lineArray[i]);
@@ -1926,13 +1940,9 @@ cometServer.prototype.conect_to_server = function()
         }
 
         cometServer.prototype.socketArray = []
-        for(var i in cometServer.prototype.options.nodeArray )
+        for(var i = 0; i < cometServer.prototype.options.nodeArray.length; i++)   
         {
-            var node = cometServer.prototype.options.nodeArray[i]
-            if(typeof node != "string")
-            {
-                continue;
-            }
+            var node = cometServer.prototype.options.nodeArray[i] 
             var socket = new WebSocket(cometServer.prototype.getUrl(node));
 
             cometServer.prototype.socketArray.push(socket)
@@ -1963,8 +1973,8 @@ cometServer.prototype.conect_to_server = function()
 
                 if(thisObj.LogLevel) console.log("Входящие сообщение:"+re);
                 var lineArray = re.replace(/^\s+|\s+$/, '').split('\n')
-                for(var i in lineArray)
-                {
+                for(var i = 0; i < lineArray; i++)    
+                { 
                     try{
                         if(thisObj.LogLevel) console.log(lineArray[i]);
                         var rj = JSON.parse(lineArray[i])
