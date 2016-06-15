@@ -203,7 +203,7 @@ var cometServer = function(opt)
 /**
  * @private
  */
-cometServer.prototype.version = "3.06";
+cometServer.prototype.version = "3.07";
 
 /**
  * @private
