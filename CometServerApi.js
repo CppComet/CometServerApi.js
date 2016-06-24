@@ -206,7 +206,7 @@ var cometServer = function(opt)
 /**
  * @private
  */
-cometServer.prototype.version = "3.09";
+cometServer.prototype.version = "3.10";
 
 /**
  * @private
@@ -908,7 +908,7 @@ cometServer.prototype.start = function(opt, callBack)
 
     cometServer.prototype.UseWebSocket(window.WebSocket !== undefined);
 
-    if(cometServer.prototype.options.dev_id > 0)
+    if(cometServer.prototype.options.dev_id !== undefined)
     {
         cometServer.prototype.in_abort = false;
         cometServer.prototype.conect(callBack);
