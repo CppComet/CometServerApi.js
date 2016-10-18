@@ -122,11 +122,13 @@ comet_server_signal.emitAll = function (signal_name, param)
 {
     comet_server_signal.emit(signal_name, param)
 
-    if(window['localStorage'] !==undefined  )
-    {
-        var curent_custom_id = Math.random()+"_"+Math.random()+"_"+Math.random()+"_"+Math.random()+"_"+Math.random()
-        window['localStorage']['comet_server_signal_storage_emit']= JSON.stringify({name:signal_name, custom_id:curent_custom_id, param:param});
-    }
+    try{ 
+        if(window['localStorage'] !==undefined  )
+        {
+            var curent_custom_id = Math.random()+"_"+Math.random()+"_"+Math.random()+"_"+Math.random()+"_"+Math.random()
+            window['localStorage']['comet_server_signal_storage_emit']= JSON.stringify({name:signal_name, custom_id:curent_custom_id, param:param});
+        }
+    }catch (e){}
 }
 
 
@@ -206,7 +208,7 @@ var cometServer = function(opt)
 /**
  * @private
  */
-cometServer.prototype.version = "3.13"; //  
+cometServer.prototype.version = "3.14"; //  
 
 /**
  * @private
@@ -359,10 +361,12 @@ cometServer.prototype.send_msg_subscription = false;
  */
 cometServer.prototype.LogLevel = 0;
 
-if(window['localStorage']['comet_LogLevel'])
-{
-    cometServer.prototype.LogLevel = window['localStorage']['comet_LogLevel']
-}
+try{ 
+    if(window['localStorage']['comet_LogLevel'])
+    {
+        cometServer.prototype.LogLevel = window['localStorage']['comet_LogLevel']
+    }
+}catch (e){}
 
 cometServer.prototype.getLogLevel = function()
 {
@@ -372,7 +376,9 @@ cometServer.prototype.getLogLevel = function()
 cometServer.prototype.setLogLevel = function(level)
 {
     cometServer.prototype.LogLevel = level;
-    window['localStorage']['comet_LogLevel'] = level;
+    try{ 
+        window['localStorage']['comet_LogLevel'] = level;
+    }catch (e){}
 }
 
 cometServer.prototype.getCustomString = function()
@@ -797,6 +803,38 @@ cometServer.prototype.send_curent_subscription = function()
     cometServer.prototype.send_msg("subscription\n"+cometServer.prototype.subscription_array.join("\n"))
 }
 
+cometServer.prototype.getUUID = function()
+{
+    if(cometServer.prototype.options["uuid"])
+    {
+        return cometServer.prototype.options["uuid"];
+    }
+    
+    var a = "qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOPASDFGHJKLZXCVBNM_-";
+    try{ 
+        if(window['localStorage']['comet_server_uuid'] !== undefined  )
+        {
+            cometServer.prototype.options["uuid"] = window['localStorage']['comet_server_uuid'] 
+        }
+        else
+        { 
+            cometServer.prototype.options["uuid"] = ""
+            for(var i = 0; i< 32; i++)
+            {
+                cometServer.prototype.options["uuid"] += a[Math.floor(Math.random()*a.length)];
+            }
+            window['localStorage']['comet_server_uuid']= cometServer.prototype.options["uuid"];
+        }
+    }catch (e)
+    {
+        cometServer.prototype.options["uuid"] = ""
+        for(var i = 0; i< 32; i++)
+        {
+            cometServer.prototype.options["uuid"] += a[Math.floor(Math.random()*a.length)];
+        }
+    }
+    return cometServer.prototype.options["uuid"];
+}
 /**
  * @private
  */
@@ -806,13 +844,13 @@ cometServer.prototype.getUrl = function(nodename)
     {
        nodename = cometServer.prototype.options.nodeName
     }
-
+     
     if(cometServer.prototype.UseWebSocket() === true)
     {
-        return 'ws'+cometServer.prototype.protocol+'://'+nodename+'/ws/sesion='+cometServer.prototype.options.user_key+'&myid='+cometServer.prototype.options.user_id+'&devid='+cometServer.prototype.options.dev_id+"&v="+cometServer.prototype.version+"&api=js";
+        return 'ws'+cometServer.prototype.protocol+'://'+nodename+'/ws/sesion='+cometServer.prototype.options.user_key+'&myid='+cometServer.prototype.options.user_id+'&devid='+cometServer.prototype.options.dev_id+"&v="+cometServer.prototype.version+"&uuid="+cometServer.prototype.getUUID()+"&api=js";
     }
 
-    return 'http'+cometServer.prototype.protocol+'://'+nodename+'/sesion='+cometServer.prototype.options.user_key+'&myid='+cometServer.prototype.options.user_id+'&devid='+cometServer.prototype.options.dev_id+"&v="+cometServer.prototype.version+"&api=js";
+    return 'http'+cometServer.prototype.protocol+'://'+nodename+'/sesion='+cometServer.prototype.options.user_key+'&myid='+cometServer.prototype.options.user_id+'&devid='+cometServer.prototype.options.dev_id+"&v="+cometServer.prototype.version+"&uuid="+cometServer.prototype.getUUID()+"&api=js";
 }
 
 cometServer.prototype.UseWebSocket = function(use)
@@ -1371,7 +1409,8 @@ cometServer.prototype.msg_cultivate = function( msg )
             pipe:msg.pipe,
             event:event_name,
             history:msg.history === true,
-            marker:msg.marker
+            marker:msg.marker,
+            uuid:msg.uuid
         }
     }
 
@@ -1446,54 +1485,56 @@ cometServer.prototype.errorReportSend = function()
     }
 
     var time = new Date();
-    if(window.localStorage["errorReportSendTime"] && parseInt(window.localStorage["errorReportSendTime"]) < time.getTime() - 3600*1000*1)
-    {
-        // Не отправлять отчёты чаще чем раз в час
-        return;
-    }
-
-    if(cometServer.prototype.isSendErrorReport)
-    {
-        return;
-    }
-
-    cometServer.prototype.isSendErrorReport = true;
-
-    window.localStorage["errorReportSendTime"] = time.getTime()
-
-    setTimeout(function()
-    {
-        var reportData = {
-            messageHistory: cometServer.prototype.messageHistory,
-            options: cometServer.prototype.options
+    try{ 
+        if(window.localStorage["errorReportSendTime"] && parseInt(window.localStorage["errorReportSendTime"]) < time.getTime() - 3600*1000*1)
+        {
+            // Не отправлять отчёты чаще чем раз в час
+            return;
         }
 
-        var ajaxRequest = undefined;
-        try {
-            ajaxRequest = new XMLHttpRequest();
-        } catch (trymicrosoft) {
-            try {
-                ajaxRequest = new ActiveXObject("Msxml2.XMLHTTP");
-            } catch (othermicrosoft) {
-                try {
-                    ajaxRequest = new ActiveXObject("Microsoft.XMLHTTP");
-                } catch (failed) {
-                    ajaxRequest = false;
-                }
-            }
-        }
-
-        if(!ajaxRequest)
+        if(cometServer.prototype.isSendErrorReport)
         {
             return;
         }
 
+        cometServer.prototype.isSendErrorReport = true;
 
-        ajaxRequest.open("POST", "http://comet-server.com/index.php?cultivate=technicalReports.errorReport", true);
-        ajaxRequest.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-        ajaxRequest.send("reportData="+JSON.stringify(reportData)+"&version"+encodeURIComponent(cometServer.prototype.version)+"&dev_id="+cometServer.prototype.options.dev_id); // Именно здесь отправляются данные
-    }, Math.floor(Math.random()*1000*30))// Разброс в минуту чтоб не отправлять запросы от многих клиентов единовременно
+        window.localStorage["errorReportSendTime"] = time.getTime()
 
+        setTimeout(function()
+        {
+            var reportData = {
+                messageHistory: cometServer.prototype.messageHistory,
+                options: cometServer.prototype.options
+            }
+
+            var ajaxRequest = undefined;
+            try {
+                ajaxRequest = new XMLHttpRequest();
+            } catch (trymicrosoft) {
+                try {
+                    ajaxRequest = new ActiveXObject("Msxml2.XMLHTTP");
+                } catch (othermicrosoft) {
+                    try {
+                        ajaxRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                    } catch (failed) {
+                        ajaxRequest = false;
+                    }
+                }
+            }
+
+            if(!ajaxRequest)
+            {
+                return;
+            }
+
+
+            ajaxRequest.open("POST", "http://comet-server.com/index.php?cultivate=technicalReports.errorReport", true);
+            ajaxRequest.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            ajaxRequest.send("reportData="+JSON.stringify(reportData)+"&version"+encodeURIComponent(cometServer.prototype.version)+"&dev_id="+cometServer.prototype.options.dev_id); // Именно здесь отправляются данные
+        }, Math.floor(Math.random()*1000*30))// Разброс в минуту чтоб не отправлять запросы от многих клиентов единовременно
+
+    }catch (e){}
     return true;
 }
 
