@@ -312,7 +312,7 @@ var _cometServerApi = function(opt)
 /**
  * @private
  */
-_cometServerApi.prototype.version = "3.17";
+_cometServerApi.prototype.version = "3.20";
 
 /**
  * @private
@@ -749,6 +749,33 @@ _cometServerApi.prototype.unsubscription = function(sigId)
     var sigName = sigId.replace(/^(.*)&&.*$/, "$1");
     var slotName = sigId.replace(/^.*&&(.*)$/, "$1");
     return comet_server_signal().disconnect(slotName, sigName);
+}
+
+
+_cometServerApi.prototype.addUUID = function(uuid)
+{
+    var d = new Date();
+    window['localStorage']['_cometApi_uuid'+uuid] = d.getTime();
+}
+
+_cometServerApi.prototype.testUUID = function(uuid)
+{
+    return window['localStorage']['_cometApi_uuid'+uuid]
+}
+
+_cometServerApi.prototype.clearUUID = function()
+{
+    var d = new Date();
+    var time = d.getTime();
+    
+    for(var i in window['localStorage'])
+    {
+        if(/^_cometApi_uuid/.test(i) && window['localStorage'][i] < time - 1000*60*3  )
+        {
+            // Удаляет старые записи из localStorage, чтоб они там не хранились более 3 минуты
+            delete window['localStorage'][i]
+        }
+    }
 }
 
 /**
@@ -1299,8 +1326,8 @@ _cometServerApi.prototype.setAsMaster = function()
 
     //  для уведомления всех остальных вкладок о своём превосходстве
     comet_server_signal().send_emit('comet_msg_master_signal', {custom_id:_cometServerApi.prototype.custom_id})
-    comet_server_signal().send_emit('comet_msg_new_master')           // для уведомления всех что надо переподписатся @todo реализовать переподписку событий
-    masterSignalIntervalId = setInterval(function()                   // Поставим таймер для уведомления всех остальных вкладок о своём превосходстве
+    comet_server_signal().send_emit('comet_msg_new_master')                     // для уведомления всех что надо переподписатся @todo реализовать переподписку событий
+    var masterSignalIntervalId = setInterval(function()                         // Поставим таймер для уведомления всех остальных вкладок о своём превосходстве
     {
         // Передаём идентификатор своей вкладки на тот случай если вдруг по ошибки ещё одна из вкладок возомнит себя мастером
         // То та вкладка у кторой идентификатор меньше уступит право быть мастер вкладкой той вкладке у которой идентификатор больше
@@ -1398,6 +1425,9 @@ _cometServerApi.prototype.setAsMaster = function()
     {
         comet_server_signal().send_emit("__comet_authorized", thisObj.isAuthorized())
     })
+    
+    // Раз в пять минут удаляем старые данные из localStorage
+    setInterval(_cometServerApi.prototype.clearUUID, 1000*60*3)
 }
 
 /**
@@ -1574,30 +1604,34 @@ _cometServerApi.prototype.msg_cultivate = function( msg,  indexInWsArr)
     }
 
     //Проверки чтоб гарантировать отсутсвие дублей
-    if(msg && msg.uuid &&  _cometServerApi.prototype.msgsUUIDs[msg.uuid])
-    {
-        //if(_cometServerApi.prototype.LogLevel) console.log(["Дубликат", result_msg]);
-        return;
-    }
-    
-    //Проверки чтоб гарантировать отсутсвие дублей
-    if(UserData && UserData._cometApi_uuid)
-    {
-        if(_cometServerApi.prototype.msgsUUIDs[UserData._cometApi_uuid])
-        {
-            //if(_cometServerApi.prototype.LogLevel) console.log(["Дубликат", result_msg]);
-            return;
-        }
-        _cometServerApi.prototype.msgsUUIDs[UserData._cometApi_uuid] = true
-
-        delete result_msg['data']._cometApi_uuid
-    }
-    
     if(msg && msg.uuid)
     {
-        _cometServerApi.prototype.msgsUUIDs[msg.uuid] = true
+        if(_cometServerApi.prototype.testUUID(msg.uuid))
+        {
+            if(_cometServerApi.prototype.LogLevel) console.log(["Дубликат", result_msg]);
+            return;
+        }
+        else
+        {
+            _cometServerApi.prototype.addUUID(msg.uuid)
+        }
     }
     
+    if(UserData && UserData._cometApi_uuid)
+    {
+        //Проверки чтоб гарантировать отсутсвие дублей
+        if(_cometServerApi.prototype.testUUID(UserData._cometApi_uuid))
+        {
+            if(_cometServerApi.prototype.LogLevel) console.log(["Дубликат", result_msg]);
+            return;
+        }
+        else
+        {
+            _cometServerApi.prototype.addUUID(result_msg['data']._cometApi_uuid)
+            delete result_msg['data']._cometApi_uuid
+        }
+    }
+      
     if(_cometServerApi.prototype.LogLevel) console.log(["msg", result_msg]);
 
 
@@ -1653,78 +1687,7 @@ _cometServerApi.prototype.socketArrayTest = function()
 
 _cometServerApi.prototype.messageHistory = []
 _cometServerApi.prototype.isSendErrorReport = false
-
-/**
- * Отправляет отчёты об ошибках на сервер
- * Используется для отладки и автоматизированого тестирования сервера на реальных данных, а не синтетических тестовых наборах
- */
-/*_cometServerApi.prototype.errorReportSend = function()
-{
-    if(_cometServerApi.prototype.messageHistory.length <=2)
-    {
-        return;
-    }
-
-    if(_cometServerApi.prototype.isUseWss())
-    {
-        return;
-    }
-
-    var time = new Date();
-    try{
-        if(window.localStorage["errorReportSendTime"] && parseInt(window.localStorage["errorReportSendTime"]) < time.getTime() - 3600*1000*1)
-        {
-            // Не отправлять отчёты чаще чем раз в час
-            return;
-        }
-
-        if(_cometServerApi.prototype.isSendErrorReport)
-        {
-            return;
-        }
-
-        _cometServerApi.prototype.isSendErrorReport = true;
-
-        window.localStorage["errorReportSendTime"] = time.getTime()
-
-        setTimeout(function()
-        {
-            var reportData = {
-                messageHistory: _cometServerApi.prototype.messageHistory,
-                options: _cometServerApi.prototype.options
-            }
-
-            var ajaxRequest = undefined;
-            try {
-                ajaxRequest = new XMLHttpRequest();
-            } catch (trymicrosoft) {
-                try {
-                    ajaxRequest = new ActiveXObject("Msxml2.XMLHTTP");
-                } catch (othermicrosoft) {
-                    try {
-                        ajaxRequest = new ActiveXObject("Microsoft.XMLHTTP");
-                    } catch (failed) {
-                        ajaxRequest = false;
-                    }
-                }
-            }
-
-            if(!ajaxRequest)
-            {
-                return;
-            }
-
-
-            ajaxRequest.open("POST", "http://comet-server.com/index.php?cultivate=technicalReports.errorReport", true);
-            ajaxRequest.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-            ajaxRequest.send("reportData="+JSON.stringify(reportData)+"&version"+encodeURIComponent(_cometServerApi.prototype.version)+"&dev_id="+_cometServerApi.prototype.options.dev_id); // Именно здесь отправляются данные
-        }, Math.floor(Math.random()*1000*30))// Разброс в минуту чтоб не отправлять запросы от многих клиентов единовременно
-
-    }catch (e){}
-    return true;
-}*/
-
-
+ 
 /**
  * Отправляет данные по вебсокету (по первому из списка, и если он не доступен то по второму.)
  * @param {string} data
@@ -2099,6 +2062,12 @@ _cometServerApi.prototype.conect_to_server = function()
                 }
                 else
                 {
+                    if(_cometServerApi.prototype.hasCriticalError[indexInArr])
+                    {
+                        console.warn(' Критическая ошибка, подключение невозможно.');
+                        return;
+                    }
+                    
                     if(thisObj.LogLevel) console.log('WS Обрыв соединения'); // например, "убит" процесс сервера
                     socket.close();
                     thisObj.web_socket_error[indexInArr]++; // Увеличение колва ошибок вебсокетов
