@@ -1,7 +1,7 @@
 /**
- * JavaScript API for comet-server.com 
+ * JavaScript API for comet-server.com
  * I will be glad to new orders for something a development.
- * 
+ *
  * @author Trapenok Victor (Трапенок Виктор Викторович), Levhav@ya.ru, 89244269357
  * Буду рад новым заказам на разработку чего нибудь.
  *
@@ -13,7 +13,7 @@
  * (҂`_´)
  * <,︻╦╤─ ҉ - - - - - - --
  * _/﹋\_
- * 
+ *
  */
 
 
@@ -312,7 +312,7 @@ var _cometServerApi = function(opt)
 /**
  * @private
  */
-_cometServerApi.prototype.version = "3.20";
+_cometServerApi.prototype.version = "3.21";
 
 /**
  * @private
@@ -767,7 +767,7 @@ _cometServerApi.prototype.clearUUID = function()
 {
     var d = new Date();
     var time = d.getTime();
-    
+
     for(var i in window['localStorage'])
     {
         if(/^_cometApi_uuid/.test(i) && window['localStorage'][i] < time - 1000*60*3  )
@@ -1425,7 +1425,7 @@ _cometServerApi.prototype.setAsMaster = function()
     {
         comet_server_signal().send_emit("__comet_authorized", thisObj.isAuthorized())
     })
-    
+
     // Раз в пять минут удаляем старые данные из localStorage
     setInterval(_cometServerApi.prototype.clearUUID, 1000*60*3)
 }
@@ -1565,7 +1565,7 @@ _cometServerApi.prototype.msg_cultivate = function( msg,  indexInWsArr)
         try
         {
             if(_cometServerApi.prototype.LogLevel) console.log(["msg", msg.data, "web_id:"+web_id]);
-            var pmsg = JSON.parse(msg.data.replace(/\\'/g, "'"))
+            var pmsg = JSON.parse(msg.data)
             if(pmsg !== undefined)
             {
                 msg.data = pmsg
@@ -1573,7 +1573,16 @@ _cometServerApi.prototype.msg_cultivate = function( msg,  indexInWsArr)
         }
         catch (failed)
         {
-
+            try
+            {
+                if(_cometServerApi.prototype.LogLevel) console.log(["msg", msg.data, "web_id:"+web_id]);
+                var pmsg = JSON.parse(msg.data.replace(/\\'/g, "'"))
+                if(pmsg !== undefined)
+                {
+                    msg.data = pmsg
+                }
+            }
+            catch (failed) { }
         }
     }
 
@@ -1616,7 +1625,7 @@ _cometServerApi.prototype.msg_cultivate = function( msg,  indexInWsArr)
             _cometServerApi.prototype.addUUID(msg.uuid)
         }
     }
-    
+
     if(UserData && UserData._cometApi_uuid)
     {
         //Проверки чтоб гарантировать отсутсвие дублей
@@ -1631,7 +1640,7 @@ _cometServerApi.prototype.msg_cultivate = function( msg,  indexInWsArr)
             delete result_msg['data']._cometApi_uuid
         }
     }
-      
+
     if(_cometServerApi.prototype.LogLevel) console.log(["msg", result_msg]);
 
 
@@ -1687,7 +1696,7 @@ _cometServerApi.prototype.socketArrayTest = function()
 
 _cometServerApi.prototype.messageHistory = []
 _cometServerApi.prototype.isSendErrorReport = false
- 
+
 /**
  * Отправляет данные по вебсокету (по первому из списка, и если он не доступен то по второму.)
  * @param {string} data
@@ -2067,7 +2076,7 @@ _cometServerApi.prototype.conect_to_server = function()
                         console.warn(' Критическая ошибка, подключение невозможно.');
                         return;
                     }
-                    
+
                     if(thisObj.LogLevel) console.log('WS Обрыв соединения'); // например, "убит" процесс сервера
                     socket.close();
                     thisObj.web_socket_error[indexInArr]++; // Увеличение колва ошибок вебсокетов
@@ -2116,9 +2125,9 @@ _cometServerApi.prototype.conect_to_server = function()
                         setTimeout(function()
                         {
                             //thisObj.conect_to_server();
-                            var node = _cometServerApi.prototype.options.nodeArray[indexInArr] 
-                            var socket = new WebSocket(_cometServerApi.prototype.getUrl(node)); 
-                            
+                            var node = _cometServerApi.prototype.options.nodeArray[indexInArr]
+                            var socket = new WebSocket(_cometServerApi.prototype.getUrl(node));
+
                             _cometServerApi.prototype.socketArray[indexInArr] = socket;
                             initSocket(socket, indexInArr);
 
@@ -2136,9 +2145,9 @@ _cometServerApi.prototype.conect_to_server = function()
                         setTimeout(function()
                         {
                             //thisObj.conect_to_server();
-                            var node = _cometServerApi.prototype.options.nodeArray[indexInArr] 
+                            var node = _cometServerApi.prototype.options.nodeArray[indexInArr]
                             var socket = new WebSocket(_cometServerApi.prototype.getUrl(node));
- 
+
                             _cometServerApi.prototype.socketArray[indexInArr] = socket;
                             initSocket(socket, indexInArr);
 
